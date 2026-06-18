@@ -319,7 +319,7 @@ async function runScripts(codec, se, interp, scriptSchema) {
 
 // ---------- the explorer UI ----------
 function wireExplorer() {
-  let active = 'headers', query = '';
+  let active = 'scripts', query = '';
   const listEl = $('list'), titleEl = $('suite-title'), descEl = $('suite-desc'), countEl = $('suite-count');
   function render() {
     const q = query.toLowerCase();
@@ -337,7 +337,7 @@ function wireExplorer() {
   document.querySelectorAll('.tab').forEach((tb) => tb.addEventListener('click', () => { active = tb.dataset.k; query = ''; $('search').value = ''; document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('on', x === tb)); render(); }));
   $('search').oninput = (e) => { query = e.target.value; render(); };
   listEl.onclick = (e) => { const row = e.target.closest('.row'); if (!row) return; const d = $('dt' + row.dataset.n); const o = d.classList.toggle('open'); row.classList.toggle('open', o); if (o && !d.innerHTML) d.innerHTML = listEl._hits[row.dataset.n].detail(); };
-  document.querySelector('.tab[data-k=headers]').classList.add('on');
+  document.querySelector('.tab[data-k=scripts]').classList.add('on');
   render();
 }
 </script>
