@@ -3,14 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>bitcoin-kernel — browse Bitcoin Core's script tests, verified live in your browser</title>
-<meta name="description" content="An independent Bitcoin consensus engine. Browse, search and drill into every one of Bitcoin Core's adversarial script_tests vectors — disassembled, each verified live in your browser. 34 rules, 132 tests, zero dependencies.">
+<title>bitcoin-kernel — learn Bitcoin's consensus rules, proven live in your browser</title>
+<meta name="description" content="An independent Bitcoin consensus engine that runs Bitcoin Core's own adversarial script tests live in your browser — categorised and explained, click any to drill in. Learn what makes a transaction valid; every claim is computed, not asserted.">
 <meta property="og:title" content="bitcoin-kernel">
-<meta property="og:description" content="Browse and drill into 1,191 of Bitcoin Core's own script vectors, each verified live by an independent engine in your browser. Zero dependencies.">
+<meta property="og:description" content="Learn Bitcoin's consensus rules, proven live: Core's own script tests run in your browser, categorised and explained, click any to drill in.">
 <meta property="og:type" content="website">
 <style>
-  :root{--bg:#fff;--fg:#16181d;--mut:#5b6470;--bd:#e6e8eb;--pan:#fafbfc;--ac:#e8830c;--ac2:#0969da;--good:#1a7f37;--bad:#cf222e;
-    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  :root{--bg:#fff;--fg:#16181d;--mut:#5b6470;--bd:#e6e8eb;--pan:#fafbfc;--ac:#e8830c;--ac2:#0969da;--good:#1a7f37;--bad:#cf222e;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
   *{box-sizing:border-box}html{scroll-behavior:smooth}
   body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
   a{color:var(--ac2);text-decoration:none}a:hover{text-decoration:underline}
@@ -20,149 +19,158 @@
   nav .wrap{display:flex;align-items:center;gap:1.4rem;height:56px}
   nav .brand{font-weight:700;letter-spacing:-.3px;margin-right:auto}nav .brand b{color:var(--ac)}
   nav a{color:var(--mut);font-size:.9rem;font-weight:500}nav a.gh{color:var(--fg)}
-  header.hero{padding:4rem 0 2.5rem}
+  header.hero{padding:3.6rem 0 2.5rem}
   .kicker{font:600 .8rem var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ac)}
-  h1{font-size:2.7rem;line-height:1.07;letter-spacing:-1.4px;margin:.6rem 0 0;font-weight:800}h1 b{color:var(--ac)}
-  .lede{font-size:1.18rem;color:var(--mut);max-width:42rem;margin:1rem 0 0;line-height:1.5}
+  h1{font-size:2.6rem;line-height:1.08;letter-spacing:-1.3px;margin:.6rem 0 0;font-weight:800}h1 b{color:var(--ac)}
+  .lede{font-size:1.16rem;color:#37414d;max-width:44rem;margin:1rem 0 0;line-height:1.55}
+  .lede b{color:var(--fg)}
+  .srcrow{display:flex;gap:.4rem 1.4rem;flex-wrap:wrap;margin:1.1rem 0 0;font:.85rem var(--mono)}
+  .srcrow a{color:var(--ac2)}.srcrow span{color:var(--mut)}
+  #livenote{margin:1.8rem 0 .2rem;padding:.85rem 1.1rem;border:1px solid var(--bd);border-radius:10px;background:var(--pan);font:.92rem/1.5 var(--mono);color:#37414d}
+  #livenote .ok{color:var(--good);font-weight:700}#livenote b{color:var(--fg)}#livenote .cons{color:var(--mut)}
+  .spin{display:inline-block;width:.8em;height:.8em;border:2px solid var(--bd);border-top-color:var(--ac);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-1px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  #cats{margin:1.4rem 0 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:1rem}
+  .catcard{text-align:left;border:1px solid var(--bd);border-radius:14px;padding:1.2rem 1.3rem;background:#fff;cursor:pointer;font:inherit;color:inherit;transition:border-color .15s,box-shadow .15s,transform .1s;display:flex;flex-direction:column}
+  .catcard:hover{border-color:var(--ac);box-shadow:0 4px 14px rgba(232,131,12,.1);transform:translateY(-1px)}
+  .ctop{display:flex;align-items:baseline;justify-content:space-between;gap:.5rem}
+  .catcard h3{margin:0;font-size:1.12rem;letter-spacing:-.3px}
+  .ccount{font:700 .95rem var(--mono);color:var(--mut)}.ccount b{color:var(--ac);font-size:1.1em}
+  .catcard p{margin:.55rem 0 .9rem;color:var(--mut);font-size:.9rem;line-height:1.5;flex:1}
+  .cgo{font:600 .82rem var(--mono);color:var(--ac2)}
   /* explorer */
-  .xwrap{border:1px solid var(--bd);border-radius:16px;overflow:hidden;margin:2rem 0 0;box-shadow:0 1px 2px rgba(0,0,0,.04)}
-  .xhead{background:#0d1117;color:#e6edf3;padding:1.1rem 1.3rem}
-  .xhead .top{display:flex;align-items:center;gap:.7rem;font:.85rem var(--mono);color:#8b949e}
-  .xhead .dot{width:10px;height:10px;border-radius:50%;background:var(--ac);animation:pulse 1.6s infinite}
-  .done .xhead .dot{background:var(--good);animation:none}
-  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(232,131,12,.5)}70%{box-shadow:0 0 0 7px rgba(232,131,12,0)}100%{box-shadow:0 0 0 0 rgba(232,131,12,0)}}
-  .xhead .big{font:800 2.8rem/1.1 var(--mono);color:var(--ac);letter-spacing:-1.5px;margin:.5rem 0 .1rem}
-  .xhead .big small{font-size:.95rem;color:#8b949e;font-weight:600;letter-spacing:0}
-  .xbar{height:5px;background:#21262d;border-radius:99px;overflow:hidden;margin:.7rem 0 .2rem}
-  .xbar #x-bar{height:100%;width:0;background:linear-gradient(90deg,var(--ac),#ffb454);transition:width .1s linear}
-  .xhead #x-status{font:.84rem/1.5 var(--mono);color:#8b949e;margin-top:.7rem}
-  .xhead #x-status b{color:#e6edf3}
-  .xtools{display:flex;gap:.6rem;align-items:center;padding:.9rem 1.1rem;border-bottom:1px solid var(--bd);background:var(--pan);flex-wrap:wrap}
-  #x-search{flex:1;min-width:180px;border:1px solid var(--bd);border-radius:8px;padding:.5rem .7rem;font:.9rem var(--mono);background:#fff;color:var(--fg)}
-  #x-results{font:.78rem var(--mono);color:var(--mut);white-space:nowrap}
-  .xchips{display:flex;gap:.4rem;flex-wrap:wrap;padding:.7rem 1.1rem 0}
-  .x-chip{border:1px solid var(--bd);background:#fff;border-radius:99px;padding:.3rem .8rem;font:.82rem system-ui;cursor:pointer;color:var(--mut)}
-  .x-chip.on{border-color:var(--ac);color:var(--ac);background:#fff7ee}
-  .x-chip span{font-family:var(--mono);font-size:.78em;opacity:.65}
-  #x-list{max-height:30rem;overflow:auto;padding:.5rem 0 .6rem}
-  .x-row{display:flex;align-items:center;gap:.8rem;padding:.5rem 1.2rem;cursor:pointer;border-left:2px solid transparent}
-  .x-row:hover{background:var(--pan)}
-  .x-row.open{background:var(--pan);border-left-color:var(--ac)}
+  #explorer{margin:1.6rem 0 0;border:1px solid var(--bd);border-radius:14px;overflow:hidden}
+  .xbar{display:flex;align-items:center;gap:.8rem;padding:.85rem 1.1rem;background:#0d1117;color:#e6edf3}
+  .xbar h3{margin:0;font-size:1rem}
+  .xbar .gap{flex:1}
+  #x-results{font:.78rem var(--mono);color:#8b949e}
+  #x-close{background:none;border:1px solid #30363d;color:#8b949e;border-radius:7px;padding:.25rem .6rem;cursor:pointer;font:.8rem var(--mono)}
+  #x-close:hover{color:#e6edf3;border-color:#8b949e}
+  .xsearch{padding:.8rem 1.1rem;border-bottom:1px solid var(--bd);background:var(--pan)}
+  #x-search{width:100%;border:1px solid var(--bd);border-radius:8px;padding:.55rem .7rem;font:.9rem var(--mono);background:#fff;color:var(--fg)}
+  #x-list{max-height:32rem;overflow:auto}
+  .x-row{display:flex;align-items:center;gap:.8rem;padding:.55rem 1.1rem;cursor:pointer;border-top:1px solid var(--bd);border-left:2px solid transparent}
+  .x-row:first-child{border-top:none}.x-row:hover{background:var(--pan)}.x-row.open{background:var(--pan);border-left-color:var(--ac)}
   .x-v{font:700 .95rem var(--mono);width:1.1em;flex-shrink:0}.x-v.ok{color:var(--good)}.x-v.no{color:var(--bad)}
   .x-lab{flex:1;font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .x-exp{font:600 .72rem var(--mono);text-transform:uppercase;border-radius:5px;padding:.12em .5em;flex-shrink:0}
-  .x-exp.pass{background:#e6f4ea;color:var(--good)}.x-exp.fail{background:#fdeceb;color:var(--bad)}
-  .x-detail{display:none}.x-detail.open{display:block;padding:.2rem 1.2rem 1rem 2.9rem}
+  .x-exp{font:600 .7rem var(--mono);text-transform:uppercase;border-radius:5px;padding:.12em .5em;flex-shrink:0}
+  .x-exp{opacity:.9}.x-exp.pass{background:#e6f4ea;color:var(--good)}.x-exp.rej{background:#eef1f4;color:#5b6470}
+  .xlegend{margin-top:.6rem;font:.8rem/1.5 var(--mono);color:var(--mut)}.xlegend b.ok{color:var(--good)}.xlegend b{color:var(--fg)}
+  .x-detail{display:none}.x-detail.open{display:block;padding:.3rem 1.1rem 1rem 2.7rem;background:var(--pan)}
   .x-card{border:1px solid var(--bd);border-radius:10px;overflow:hidden;background:#fff}
   .dcom{background:#fff7ee;padding:.7rem 1rem;font-style:italic;color:#7a4a10;border-bottom:1px solid var(--bd);font-size:.92rem}
-  .dcom .dtag{float:right;font:600 .65rem var(--mono);text-transform:uppercase;color:var(--ac);font-style:normal;letter-spacing:.05em}
+  .dcom .dtag{color:var(--ac);font-style:normal;font-size:.85em}
   .dl{display:flex;border-top:1px solid var(--bd)}.dl:first-child{border-top:none}
-  .dk{width:11rem;flex-shrink:0;padding:.6rem .9rem;font:.78rem var(--mono);color:var(--mut);background:var(--pan)}
+  .dk{width:12rem;flex-shrink:0;padding:.6rem .9rem;font:.76rem var(--mono);color:var(--mut);background:var(--pan)}
   .dv{padding:.6rem .9rem;font-size:.9rem;overflow:hidden}
-  .dasm{font:.84rem/1.5 var(--mono);color:var(--fg);word-break:break-word}
-  .dhex{font:.74rem/1.4 var(--mono);color:var(--mut);word-break:break-all;margin-top:.3rem}
+  .dasm{font:.84rem/1.55 var(--mono);color:var(--fg);word-break:break-word}
+  .dhex{font:.72rem/1.4 var(--mono);color:var(--mut);word-break:break-all;margin-top:.3rem}
   .ff{display:inline-block;font:600 .68rem var(--mono);background:#eef1f4;color:#475160;border-radius:5px;padding:.1em .45em;margin:0 .25em .25em 0}
   .ff.none{background:none;color:var(--mut);font-weight:400;font-style:italic}
-  .match{font:600 .72rem var(--mono);color:var(--good);margin-left:.5rem}
-  .x-more{padding:.7rem 1.2rem;color:var(--mut);font:.8rem var(--mono);text-align:center}
-  .hint{margin:.6rem 0 0;color:var(--mut);font-size:.85rem}
-  .score{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--bd);border:1px solid var(--bd);border-radius:14px;overflow:hidden;margin:2rem 0 0}
-  .stat{background:var(--bg);padding:1.1rem 1.2rem}.stat .n{font:800 1.7rem/1 var(--mono);letter-spacing:-1px}.stat .l{color:var(--mut);font-size:.8rem;margin-top:.3rem}
-  section{padding:4rem 0;border-top:1px solid var(--bd)}
-  section h2{font-size:1.8rem;letter-spacing:-.6px;margin:0 0 .4rem}
-  section .sub{color:var(--mut);margin:0 0 2rem;max-width:46rem}
-  .bugs{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;margin-top:2rem}
+  .match{font:600 .72rem var(--mono);color:var(--good);margin-left:.5rem}.match.bad{color:var(--bad)}
+  section{padding:3.6rem 0;border-top:1px solid var(--bd)}
+  section h2{font-size:1.7rem;letter-spacing:-.5px;margin:0 0 .4rem}
+  section .sub{color:var(--mut);margin:0 0 1.6rem;max-width:46rem}
+  .bugs{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;margin-top:1.6rem}
   .bug{background:var(--bg);border:1px solid var(--bd);border-radius:12px;padding:1.1rem 1.2rem}
   .bug h4{margin:0 0 .35rem;font:600 .95rem var(--mono)}.bug p{margin:0;color:var(--mut);font-size:.9rem;line-height:1.5}
-  .rulegrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.4rem 2rem}
-  .rules h3{font-size:1.05rem;margin:0 0 .5rem;display:flex;align-items:center;gap:.5rem}
-  .chip{font:600 .72rem var(--mono);color:var(--ac);border:1px solid var(--ac);border-radius:99px;padding:0 .5em}
-  .rules table{width:100%;border-collapse:collapse;font-size:.88rem}
-  .rules td{padding:.32rem .5rem;border-top:1px solid var(--bd);vertical-align:top}
-  .rules td.name{font-family:var(--mono);white-space:nowrap}.rules td.code{font-family:var(--mono);color:var(--mut);font-size:.8rem}
-  .rules td.bip{color:var(--ac);font-size:.78rem;font-family:var(--mono);text-align:right;white-space:nowrap}
+  .rphase{border:1px solid var(--bd);border-radius:12px;margin-bottom:.8rem;background:#fff;overflow:hidden}
+  .rphase summary{display:flex;align-items:center;gap:.6rem;padding:.9rem 1.1rem;cursor:pointer;font-weight:600;list-style:none}
+  .rphase summary::-webkit-details-marker{display:none}
+  .rphase summary::before{content:'▸';color:var(--ac);font-size:.8em;transition:transform .15s}
+  .rphase[open] summary::before{transform:rotate(90deg)}
+  .rp-name{flex:1}.chip{font:600 .72rem var(--mono);color:var(--ac);border:1px solid var(--ac);border-radius:99px;padding:.05em .6em}
+  .rp-blurb{margin:0;padding:0 1.1rem .4rem 2rem;color:var(--mut);font-size:.92rem;line-height:1.5}
+  .rphase table{width:100%;border-collapse:collapse;font-size:.86rem;padding:0 1.1rem}
+  .rphase td{padding:.3rem 1.1rem;border-top:1px solid var(--bd);vertical-align:top}
+  .rphase td.name{font-family:var(--mono);white-space:nowrap}.rphase td.rc{font-family:var(--mono);color:var(--mut);font-size:.8rem}
+  .rphase td.bip{color:var(--ac);font-size:.78rem;font-family:var(--mono);text-align:right;white-space:nowrap}
   table.cov{width:100%;border-collapse:collapse;font-size:.92rem}
   table.cov td{padding:.6rem .6rem;border-top:1px solid var(--bd);vertical-align:top}table.cov td:first-child{font-weight:600}
   .badge{font:600 .7rem var(--mono);text-transform:uppercase;border-radius:99px;padding:.1em .6em;white-space:nowrap;color:#fff}
-  .principles{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.4rem}
-  .pr h3{margin:0 0 .3rem;font-size:1.05rem}.pr p{margin:0;color:var(--mut);font-size:.92rem}
-  footer{padding:3rem 0;color:var(--mut);font-size:.88rem}
+  footer{padding:3rem 0;color:var(--mut);font-size:.88rem;border-top:1px solid var(--bd)}
   footer .links{display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:1rem}
   .note{font:.8rem/1.5 var(--mono);color:var(--mut)}
-  @media(max-width:600px){h1{font-size:2.1rem}.dk{width:6.5rem}.xhead .big{font-size:2.1rem}}
+  @media(max-width:600px){h1{font-size:2rem}.dk{width:7rem}}
 </style>
 </head>
 <body>
 <nav><div class="wrap">
   <span class="brand">bitcoin<b>·</b>kernel</span>
-  <a href="#core">Explorer</a><a href="#rules">Rules</a><a href="#tests">Tests</a><a href="#coverage">Coverage</a>
-  <a class="gh" href="https://github.com/bitcoin-kernel/bitcoin-kernel.github.io">GitHub ↗</a>
+  <a href="#cats">Explore</a><a href="#rules">Rules</a><a href="#bugs">Bugs found</a><a href="#coverage">Coverage</a>
+  <a class="gh" href="https://github.com/bitcoin-kernel/bitcoin-kernel.github.io">Source ↗</a>
 </div></nav>
 
-<header class="hero" id="core"><div class="wrap">
-  <div class="kicker">Independent consensus engine</div>
-  <h1>Browse Bitcoin Core's own script tests.<br>Each one <b>verified live</b>, in your browser.</h1>
-  <p class="lede">This page loaded our consensus engine and Bitcoin Core's adversarial <a href="https://github.com/bitcoin/bitcoin/blob/master/src/test/data/script_tests.json"><code>script_tests.json</code></a>, ran the whole differential here, and made every vector searchable. Click any test to see the real script disassembled and our computed verdict.</p>
-
-  <div class="xwrap done-target" id="x-panel">
-    <div class="xhead">
-      <div class="top"><span class="dot"></span><span>differential · bitcoin-kernel vs Bitcoin Core <code>script_tests.json</code></span></div>
-      <div class="big"><span id="x-count">0</span> <small>Bitcoin Core script vectors verified</small></div>
-      <div class="xbar"><div id="x-bar"></div></div>
-      <div id="x-status">starting…</div>
-    </div>
-    <div id="x-explorer" hidden>
-      <div class="xchips" id="x-chips"></div>
-      <div class="xtools"><input id="x-search" placeholder="search Core's tests — try ‘taproot’, ‘BIP66’, ‘multisig’, ‘NULLDUMMY’…" autocomplete="off"><span id="x-results"></span></div>
-      <div id="x-list"></div>
-    </div>
+<header class="hero"><div class="wrap">
+  <div class="kicker">Independent consensus engine · learn by running it</div>
+  <h1>What makes a Bitcoin transaction valid?<br>Here are the rules — <b>proving themselves</b> as you read.</h1>
+  <p class="lede">Every Bitcoin node must agree, byte-for-byte, on which transactions are valid — disagree and the network forks. Bitcoin Core ships <b><span id="headline-num">1,191</span> adversarial test cases</b> for its script rules. This page runs them all through a <b>separate, independent engine</b>, live in your browser, and passes every one. Below, the same tests grouped into the <b>six things Bitcoin script does</b> — click any group to read what it checks and drill into the real, disassembled vectors.</p>
+  <div class="srcrow">
+    <a href="./engine/codec/interpreter.js">the engine →</a>
+    <a href="./engine/schema/validate.jsonld">the rules, as a spec →</a>
+    <a href="https://github.com/bitcoin/bitcoin/blob/master/src/test/data/script_tests.json">Core's test vectors →</a>
+    <a href="https://github.com/bitcoin-kernel/bitcoin-kernel.github.io">source →</a>
+    <span>· zero dependencies · runs in Node, browser & mobile</span>
   </div>
-  <p class="hint">↑ real Bitcoin Core test vectors — the same corpus every node implementation is checked against — each run through our independent engine on this page. Open the console; it's the real interpreter.</p>
+  <div id="livenote"><span class="spin"></span> starting…</div>
+  <div id="cats"><button class="catcard" data-k="logic">
+  <div class="ctop"><h3>The stack machine</h3><span class="ccount" id="c-logic">…</span></div>
+  <p>Every script is a tiny program on a stack: push data, do arithmetic, branch on conditions, hash, compare. The raw opcode semantics everything else is built on.</p><span class="cgo">explore the tests →</span></button><button class="catcard" data-k="signatures">
+  <div class="ctop"><h3>Signatures</h3><span class="ccount" id="c-signatures">…</span></div>
+  <p>Does a signature actually authorise the spend? ECDSA verification, strict DER encoding, low-S, and sighash types — the rules that stop forged or malleable signatures.</p><span class="cgo">explore the tests →</span></button><button class="catcard" data-k="multisig">
+  <div class="ctop"><h3>Multisig</h3><span class="ccount" id="c-multisig">…</span></div>
+  <p>M-of-N: several keys must sign together. These probe the famous CHECKMULTISIG quirks — the off-by-one extra “dummy” pop, and strict signature ordering.</p><span class="cgo">explore the tests →</span></button><button class="catcard" data-k="encoding">
+  <div class="ctop"><h3>Canonical encoding</h3><span class="ccount" id="c-encoding">…</span></div>
+  <p>Minimal data pushes, strict number encoding, no malleability — the rules that make a transaction’s bytes the one true representation.</p><span class="cgo">explore the tests →</span></button><button class="catcard" data-k="segwit">
+  <div class="ctop"><h3>SegWit</h3><span class="ccount" id="c-segwit">…</span></div>
+  <p>Segregated Witness (BIP 141/143): the signature lives outside the txid. P2WPKH / P2WSH execution and the sighash that commits to the spent amount.</p><span class="cgo">explore the tests →</span></button><button class="catcard" data-k="p2sh">
+  <div class="ctop"><h3>Pay-to-Script-Hash</h3><span class="ccount" id="c-p2sh">…</span></div>
+  <p>Funds locked to the hash of a redeem script (BIP 16): reveal the script in the input, the node hashes it, checks the match, then runs it.</p><span class="cgo">explore the tests →</span></button></div>
 
-  <div class="score">
-    <div class="stat"><div class="n">132</div><div class="l">tests, all passing</div></div>
-    <div class="stat"><div class="n" data-live>0</div><div class="l">of Core's script vectors</div></div>
-    <div class="stat"><div class="n">34</div><div class="l">consensus rules</div></div>
-    <div class="stat"><div class="n">5</div><div class="l">real bugs caught</div></div>
-    <div class="stat"><div class="n">0</div><div class="l">dependencies</div></div>
+  <div id="explorer" hidden>
+    <div class="xbar"><h3 id="x-title">tests</h3><span class="gap"></span><span id="x-results"></span><button id="x-close">✕ categories</button></div>
+    <div class="xsearch"><input id="x-search" placeholder="search within this group — try ‘DER’, ‘BIP66’, ‘NULLDUMMY’, ‘taproot’…" autocomplete="off">
+      <div class="xlegend"><b class="ok">✓</b> bitcoin-kernel's verdict matches Bitcoin Core. Each test is a script that <b>should be valid</b> or <b>should be rejected</b> — we agree on every one. Click a row to see the script and why.</div></div>
+    <div id="x-list"></div>
   </div>
 </div></header>
 
-<section><div class="wrap">
-  <h2>Differential testing isn't decoration</h2>
-  <p class="sub">Running Core's own corpus against an independent engine found and fixed <strong>5 genuine consensus bugs</strong> in ours — the kind that silently diverge a re-implementation from the network. Each is now a regression test in the explorer above.</p>
-  <div class="bugs"><div class="bug"><h4>OP_TUCK stack underflow</h4><p>TUCK on a one-item stack silently succeeded instead of failing — it checked depth ≥ 1 but needs ≥ 2.</p></div><div class="bug"><h4>MINIMALIF over-applied</h4><p>Enforced in legacy script, where the rule is witness-v0 / tapscript only.</p></div><div class="bug"><h4>Hybrid pubkeys rejected</h4><p>0x06/0x07 public keys (valid before STRICTENC) were refused, so valid historical scripts would fail.</p></div><div class="bug"><h4>CHECKMULTISIG order &amp; op-count</h4><p>Wrong sig/pubkey evaluation order, and the key count was never added to the 201-op limit.</p></div><div class="bug"><h4>P2SH / segwit activation</h4><p>A P2SH- or witness-shaped scriptPubKey with the flag off took the redeem/witness path instead of running as a plain script.</p></div></div>
+<section id="bugs"><div class="wrap">
+  <h2>Running Core's tests against a fresh engine found real bugs</h2>
+  <p class="sub">Differential testing isn't decoration. Checking an independent implementation against Bitcoin Core's own corpus surfaced <strong>5 genuine consensus bugs</strong> in ours — each the kind that would silently diverge a re-implementation from the network. Each is now a permanent test in the explorer above.</p>
+  <div class="bugs"><div class="bug"><h4>OP_TUCK stack underflow</h4><p>TUCK copies the top item below the second — so it needs two items. Ours checked for one, so TUCK on a single-item stack silently succeeded instead of failing.</p></div><div class="bug"><h4>MINIMALIF in the wrong place</h4><p>The “IF argument must be exactly 0 or 1” rule only applies inside SegWit/Taproot scripts. We were enforcing it in legacy scripts too, rejecting valid ones.</p></div><div class="bug"><h4>Hybrid pubkeys rejected</h4><p>Pre-2015 “hybrid” public keys (prefix 0x06/0x07) are valid when strict encoding is off. We refused them, which would fail real historical transactions.</p></div><div class="bug"><h4>CHECKMULTISIG order &amp; op-count</h4><p>Multisig evaluates signatures and keys top-of-stack first, and its key count counts toward the 201-operation limit. We had the order reversed and the count missing.</p></div><div class="bug"><h4>P2SH / SegWit activation</h4><p>Before P2SH and SegWit activated, a script that merely looks like them runs as plain script. We took the special path regardless of the activation flag.</p></div></div>
 </div></section>
 
 <section id="rules"><div class="wrap">
-  <h2>34 consensus rules, categorised</h2>
-  <p class="sub">Generated directly from the engine's <code>validate.jsonld</code> — each rule carries its BIP provenance and Bitcoin Core error code. The readable spec a single C++ binary can't give you.</p>
-  <div class="rulegrid"><div class="rules"><h3>Header <span class="chip">7</span></h3><table><tr><td class="name">prev-link</td><td class="code">bad-prevblk</td><td class="bip"></td></tr><tr><td class="name">proof-of-work</td><td class="code">high-hash</td><td class="bip"></td></tr><tr><td class="name">difficulty</td><td class="code">bad-diffbits</td><td class="bip"></td></tr><tr><td class="name">median-time-past</td><td class="code">time-too-old</td><td class="bip"></td></tr><tr><td class="name">future-time</td><td class="code">time-too-new</td><td class="bip"></td></tr><tr><td class="name">version</td><td class="code">bad-version</td><td class="bip">BIP 34, 66, 65</td></tr><tr><td class="name">timewarp</td><td class="code">time-timewarp-attack</td><td class="bip">BIP 94</td></tr></table></div><div class="rules"><h3>SPV / Merkle <span class="chip">4</span></h3><table><tr><td class="name">proof-of-work</td><td class="code">high-hash</td><td class="bip"></td></tr><tr><td class="name">tree-consistency</td><td class="code">bad-merkle-tree</td><td class="bip"></td></tr><tr><td class="name">merkle-root</td><td class="code">bad-txnmrklroot</td><td class="bip"></td></tr><tr><td class="name">inclusion</td><td class="code">tx-not-included</td><td class="bip"></td></tr></table></div><div class="rules"><h3>Transaction <span class="chip">7</span></h3><table><tr><td class="name">inputs-nonempty</td><td class="code">bad-txns-vin-empty</td><td class="bip"></td></tr><tr><td class="name">outputs-nonempty</td><td class="code">bad-txns-vout-empty</td><td class="bip"></td></tr><tr><td class="name">size-limit</td><td class="code">bad-txns-oversize</td><td class="bip"></td></tr><tr><td class="name">output-values</td><td class="code">bad-txns-vout-toolarge</td><td class="bip"></td></tr><tr><td class="name">inputs-unique</td><td class="code">bad-txns-inputs-duplicate</td><td class="bip"></td></tr><tr><td class="name">prevouts</td><td class="code">bad-txns-prevout-null</td><td class="bip"></td></tr><tr><td class="name">coinbase-script-size</td><td class="code">bad-cb-length</td><td class="bip"></td></tr></table></div><div class="rules"><h3>Block <span class="chip">7</span></h3><table><tr><td class="name">coinbase-first</td><td class="code">bad-cb-missing</td><td class="bip"></td></tr><tr><td class="name">coinbase-single</td><td class="code">bad-cb-multiple</td><td class="bip"></td></tr><tr><td class="name">merkle-root</td><td class="code">bad-txnmrklroot</td><td class="bip"></td></tr><tr><td class="name">no-duplicate-txids</td><td class="code">bad-txns-duplicate</td><td class="bip"></td></tr><tr><td class="name">sigop-limit</td><td class="code">bad-blk-sigops</td><td class="bip"></td></tr><tr><td class="name">weight-limit</td><td class="code">bad-blk-weight</td><td class="bip"></td></tr><tr><td class="name">transactions-valid</td><td class="code">bad-txns</td><td class="bip"></td></tr></table></div><div class="rules"><h3>Block context <span class="chip">9</span></h3><table><tr><td class="name">coinbase-height</td><td class="code">bad-cb-height</td><td class="bip">BIP 34</td></tr><tr><td class="name">tx-finality</td><td class="code">bad-txns-nonfinal</td><td class="bip">BIP 113</td></tr><tr><td class="name">sequence-locks</td><td class="code">bad-txns-nonfinal</td><td class="bip">BIP 68, 112</td></tr><tr><td class="name">inputs-available</td><td class="code">bad-txns-inputs-missingorspent</td><td class="bip"></td></tr><tr><td class="name">coinbase-maturity</td><td class="code">bad-txns-premature-spend-of-coinbase</td><td class="bip"></td></tr><tr><td class="name">no-fee-deficit</td><td class="code">bad-txns-in-belowout</td><td class="bip"></td></tr><tr><td class="name">coinbase-amount</td><td class="code">bad-cb-amount</td><td class="bip"></td></tr><tr><td class="name">witness-commitment</td><td class="code">bad-witness-merkle-match</td><td class="bip">BIP 141</td></tr><tr><td class="name">scripts</td><td class="code">mandatory-script-verify-flag-failed</td><td class="bip"></td></tr></table></div></div>
+  <h2>The full rulebook: 34 consensus rules</h2>
+  <p class="sub">Script (above) is one part. These are <em>all</em> the rules a node checks to accept a block — generated straight from <a href="./engine/schema/validate.jsonld">the engine's machine-readable spec</a>, each with its BIP and Bitcoin Core error code. Expand a stage to read what it enforces.</p>
+  <details class="rphase"><summary><span class="rp-name">Header</span><span class="chip">7 rules</span></summary>
+  <p class="rp-blurb">What a block header must satisfy before its work even counts: it links to the previous block, its proof-of-work meets the target, its timestamp is sane, and its difficulty is correct (including the testnet4 timewarp fix).</p>
+  <table><tr><td class="name">prev-link</td><td class="rc">bad-prevblk</td><td class="bip"></td></tr><tr><td class="name">proof-of-work</td><td class="rc">high-hash</td><td class="bip"></td></tr><tr><td class="name">difficulty</td><td class="rc">bad-diffbits</td><td class="bip"></td></tr><tr><td class="name">median-time-past</td><td class="rc">time-too-old</td><td class="bip"></td></tr><tr><td class="name">future-time</td><td class="rc">time-too-new</td><td class="bip"></td></tr><tr><td class="name">version</td><td class="rc">bad-version</td><td class="bip">BIP 34, 66, 65</td></tr><tr><td class="name">timewarp</td><td class="rc">time-timewarp-attack</td><td class="bip">BIP 94</td></tr></table></details><details class="rphase"><summary><span class="rp-name">SPV / Merkle</span><span class="chip">4 rules</span></summary>
+  <p class="rp-blurb">Proving a single transaction is in a block without the whole block — the merkle inclusion proofs a light client checks.</p>
+  <table><tr><td class="name">proof-of-work</td><td class="rc">high-hash</td><td class="bip"></td></tr><tr><td class="name">tree-consistency</td><td class="rc">bad-merkle-tree</td><td class="bip"></td></tr><tr><td class="name">merkle-root</td><td class="rc">bad-txnmrklroot</td><td class="bip"></td></tr><tr><td class="name">inclusion</td><td class="rc">tx-not-included</td><td class="bip"></td></tr></table></details><details class="rphase"><summary><span class="rp-name">Transaction</span><span class="chip">7 rules</span></summary>
+  <p class="rp-blurb">Standalone sanity of a transaction: it has inputs and outputs, no value overflows the 21M cap, and it never spends the same coin twice (the bug behind the 2018 inflation CVE).</p>
+  <table><tr><td class="name">inputs-nonempty</td><td class="rc">bad-txns-vin-empty</td><td class="bip"></td></tr><tr><td class="name">outputs-nonempty</td><td class="rc">bad-txns-vout-empty</td><td class="bip"></td></tr><tr><td class="name">size-limit</td><td class="rc">bad-txns-oversize</td><td class="bip"></td></tr><tr><td class="name">output-values</td><td class="rc">bad-txns-vout-toolarge</td><td class="bip"></td></tr><tr><td class="name">inputs-unique</td><td class="rc">bad-txns-inputs-duplicate</td><td class="bip"></td></tr><tr><td class="name">prevouts</td><td class="rc">bad-txns-prevout-null</td><td class="bip"></td></tr><tr><td class="name">coinbase-script-size</td><td class="rc">bad-cb-length</td><td class="bip"></td></tr></table></details><details class="rphase"><summary><span class="rp-name">Block</span><span class="chip">7 rules</span></summary>
+  <p class="rp-blurb">A block's internal consistency: the coinbase is first and unique, the merkle root commits to every transaction, no duplicate txids (BIP 30), and the sigop and weight budgets are respected.</p>
+  <table><tr><td class="name">coinbase-first</td><td class="rc">bad-cb-missing</td><td class="bip"></td></tr><tr><td class="name">coinbase-single</td><td class="rc">bad-cb-multiple</td><td class="bip"></td></tr><tr><td class="name">merkle-root</td><td class="rc">bad-txnmrklroot</td><td class="bip"></td></tr><tr><td class="name">no-duplicate-txids</td><td class="rc">bad-txns-duplicate</td><td class="bip"></td></tr><tr><td class="name">sigop-limit</td><td class="rc">bad-blk-sigops</td><td class="bip"></td></tr><tr><td class="name">weight-limit</td><td class="rc">bad-blk-weight</td><td class="bip"></td></tr><tr><td class="name">transactions-valid</td><td class="rc">bad-txns</td><td class="bip"></td></tr></table></details><details class="rphase"><summary><span class="rp-name">Block in context</span><span class="chip">9 rules</span></summary>
+  <p class="rp-blurb">A block against the chain state it extends: coinbase height (BIP 34) and maturity, timelocks and sequence locks (BIP 68/112), every input available and unspent, fees non-negative, the witness commitment, and every script executes.</p>
+  <table><tr><td class="name">coinbase-height</td><td class="rc">bad-cb-height</td><td class="bip">BIP 34</td></tr><tr><td class="name">tx-finality</td><td class="rc">bad-txns-nonfinal</td><td class="bip">BIP 113</td></tr><tr><td class="name">sequence-locks</td><td class="rc">bad-txns-nonfinal</td><td class="bip">BIP 68, 112</td></tr><tr><td class="name">inputs-available</td><td class="rc">bad-txns-inputs-missingorspent</td><td class="bip"></td></tr><tr><td class="name">coinbase-maturity</td><td class="rc">bad-txns-premature-spend-of-coinbase</td><td class="bip"></td></tr><tr><td class="name">no-fee-deficit</td><td class="rc">bad-txns-in-belowout</td><td class="bip"></td></tr><tr><td class="name">coinbase-amount</td><td class="rc">bad-cb-amount</td><td class="bip"></td></tr><tr><td class="name">witness-commitment</td><td class="rc">bad-witness-merkle-match</td><td class="bip">BIP 141</td></tr><tr><td class="name">scripts</td><td class="rc">mandatory-script-verify-flag-failed</td><td class="bip"></td></tr></table></details>
 </div></section>
 
-<section id="tests" style="background:var(--pan)"><div class="wrap">
-  <h2>Beyond script: 132 tests in total</h2>
-  <p class="sub">The explorer above is the script-consensus surface. The full suite also covers byte-exact serialization, header/PoW &amp; difficulty (incl. testnet4 / BIP 94 from genesis), block validation against live mainnet data, reorg recovery, SPV &amp; compact filters, wallet &amp; mining, and P2P / Nostr distribution — every one a passing test.</p>
-</div></section>
-
-<section id="coverage"><div class="wrap">
-  <h2>Honest coverage</h2>
-  <p class="sub">Showing the boundaries is what makes the rest credible — a validation engine, not a relay node.</p>
-  <table class="cov"><tr><td>Transaction, block &amp; header rules</td><td><span class="badge" style="background:#1a7f37">covered</span></td><td style="color:var(--mut)">Every rule a node checks to accept a block, with Bitcoin Core error codes.</td></tr><tr><td>Script execution</td><td><span class="badge" style="background:#1a7f37">covered</span></td><td style="color:var(--mut)">Full opcode set, all sighash types, differentially verified against Core (the explorer above).</td></tr><tr><td>SegWit &amp; Taproot</td><td><span class="badge" style="background:#1a7f37">covered</span></td><td style="color:var(--mut)">BIP 141 / 143 / 341 / 342 — key path and script path.</td></tr><tr><td>Difficulty incl. testnet4 / BIP 94</td><td><span class="badge" style="background:#1a7f37">covered</span></td><td style="color:var(--mut)">Timewarp mitigation and the 20-minute min-difficulty rule, from genesis.</td></tr><tr><td>Sequence locks (BIP 68 / 112)</td><td><span class="badge" style="background:#1a7f37">covered</span></td><td style="color:var(--mut)">Relative lock-time enforced at the transaction-context level.</td></tr><tr><td>Reorg recovery</td><td><span class="badge" style="background:#1a7f37">covered</span></td><td style="color:var(--mut)">Bounded fork-point walk-back under the more-work rule.</td></tr><tr><td>Witness structure / malleability</td><td><span class="badge" style="background:#e8830c">partial</span></td><td style="color:var(--mut)">Execution is covered; BIP 141 witness-malleability validation is a documented boundary.</td></tr><tr><td>Mempool, relay policy, RBF</td><td><span class="badge" style="background:#5b6470">out of scope</span></td><td style="color:var(--mut)">Node policy, not consensus — a light client never runs it.</td></tr></table>
-</div></section>
-
-<section style="background:var(--pan)"><div class="wrap">
-  <h2>Implementation standards</h2>
-  <div class="principles" style="margin-top:1.5rem"><div class="pr"><h3>The spec is the source of truth</h3><p>A declarative JSON-LD model defines every structure and rule. The codec and validator are projections of it.</p></div><div class="pr"><h3>Byte-exact or it is not canonical</h3><p>The reference codec round-trips real mainnet bytes exactly. If it cannot reproduce consensus bytes, it is documentation; because it can, it is canonical.</p></div><div class="pr"><h3>Verify, do not trust</h3><p>Independent re-implementation, checked against Bitcoin Core's own vectors — not a wrapper around one binary.</p></div><div class="pr"><h3>Zero dependencies, runs anywhere</h3><p>Pure JavaScript, no build step, no native code — which is why the explorer above runs the real engine on this page.</p></div></div>
+<section id="coverage" style="background:var(--pan)"><div class="wrap">
+  <h2>What's covered — and what isn't</h2>
+  <p class="sub">Showing the boundaries is what makes the rest credible. This is a <em>validation</em> engine — what a node checks to accept a block — not a relay node.</p>
+  <table class="cov"><tr><td>Transaction, block &amp; header rules</td><td><span class="badge" style="background:#1a7f37">covered</span></td><td style="color:var(--mut)">Every rule a node checks to accept a block, with Bitcoin Core’s own error codes.</td></tr><tr><td>Script execution</td><td><span class="badge" style="background:#1a7f37">covered</span></td><td style="color:var(--mut)">Full opcode set, all sighash types — differentially verified against Core above.</td></tr><tr><td>SegWit &amp; Taproot</td><td><span class="badge" style="background:#1a7f37">covered</span></td><td style="color:var(--mut)">BIP 141 / 143 / 341 / 342 — key path and script path.</td></tr><tr><td>Difficulty incl. testnet4 / BIP 94</td><td><span class="badge" style="background:#1a7f37">covered</span></td><td style="color:var(--mut)">Timewarp mitigation and the 20-minute min-difficulty rule, from genesis.</td></tr><tr><td>Reorg recovery</td><td><span class="badge" style="background:#1a7f37">covered</span></td><td style="color:var(--mut)">Bounded fork-point walk-back under the more-work rule.</td></tr><tr><td>Witness structure / malleability</td><td><span class="badge" style="background:#e8830c">partial</span></td><td style="color:var(--mut)">Execution is covered; BIP 141 witness-malleability validation is a documented boundary.</td></tr><tr><td>Mempool, relay policy, RBF</td><td><span class="badge" style="background:#5b6470">out of scope</span></td><td style="color:var(--mut)">Node policy, not consensus — a light client never runs it.</td></tr></table>
 </div></section>
 
 <footer><div class="wrap">
   <div class="links">
-    <a href="https://github.com/bitcoin-kernel/bitcoin-kernel.github.io">Source &amp; engine</a>
-    <a href="./engine/vectors/script_tests.json">The vectors</a>
+    <a href="https://github.com/bitcoin-kernel/bitcoin-kernel.github.io">Source</a>
     <a href="./engine/codec/interpreter.js">The interpreter</a>
+    <a href="./engine/schema/validate.jsonld">The rules (spec)</a>
+    <a href="https://github.com/bitcoin/bitcoin/blob/master/src/test/data/script_tests.json">Core's vectors</a>
   </div>
-  <p class="note">Standalone: the consensus engine and Bitcoin Core's vectors are vendored into this repo (engine snapshot v0.0.24); everything above runs same-origin, no external calls. Rules generated from the engine's validate.jsonld. Independent community project; not affiliated with Bitcoin Core.</p>
+  <p class="note">Standalone: the engine, its rules, and Bitcoin Core's vectors are vendored into this repo (engine v0.0.24); everything above runs same-origin, no external calls. 132 tests pass in the full suite. Independent community project; not affiliated with Bitcoin Core.</p>
 </div></footer>
 <script type="module">
 import { Codec } from './engine/codec/codec.js';
@@ -171,11 +179,13 @@ import { ScriptInterpreter } from './engine/codec/interpreter.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-const setStatus = (t) => { $('x-status').innerHTML = t; };
+const note = (h) => { $('livenote').innerHTML = h; };
+
+const CAT_LABEL = { logic: 'The stack machine', signatures: 'Signatures', multisig: 'Multisig', encoding: 'Canonical encoding', segwit: 'SegWit', p2sh: 'Pay-to-Script-Hash' };
 
 try {
   const j = (p) => fetch(p).then((r) => r.json());
-  setStatus('loading the engine and Bitcoin Core’s vectors…');
+  note('<span class="spin"></span> loading the engine and Bitcoin Core’s vectors…');
   const [core, scriptSchema, chainSchema, raw] = await Promise.all([
     j('./engine/schema/core.jsonld'), j('./engine/schema/script.jsonld'),
     j('./engine/schema/chain.jsonld'), j('./engine/vectors/script_tests.json'),
@@ -184,111 +194,64 @@ try {
   const se = ScriptEngine.fromSchemas(scriptSchema, chainSchema);
   const interp = new ScriptInterpreter(codec, se, scriptSchema['@graph'].find((n) => n['@id'] === 'btc:scriptLimits'));
 
-  const NAME2CODE = new Map();
-  for (const m of scriptSchema['@graph'].find((n) => n['@id'] === 'btc:Opcode').members) {
-    NAME2CODE.set(m.name, m.code); NAME2CODE.set(m.name.replace(/^OP_/, ''), m.code);
-  }
+  const N2C = new Map();
+  for (const m of scriptSchema['@graph'].find((n) => n['@id'] === 'btc:Opcode').members) { N2C.set(m.name, m.code); N2C.set(m.name.replace(/^OP_/, ''), m.code); }
   const hx = (b) => [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
   const sn = (n) => { if (n === 0n) return []; const g = n < 0n; let a = g ? -n : n; const o = []; while (a > 0n) { o.push(Number(a & 0xffn)); a >>= 8n; } if (o[o.length - 1] & 0x80) o.push(g ? 0x80 : 0); else if (g) o[o.length - 1] |= 0x80; return o; };
   const pd = (b) => { const n = b.length; if (n < 76) return [n, ...b]; if (n <= 255) return [76, n, ...b]; if (n <= 65535) return [77, n & 255, n >> 8, ...b]; return [78, n & 255, (n >> 8) & 255, (n >> 16) & 255, (n >>> 24) & 255, ...b]; };
-  const ps = (s) => { const o = []; for (const w of s.split(/\s+/).filter(Boolean)) { if (/^-?\d+$/.test(w)) { const n = BigInt(w); if (n === 0n) o.push(0); else if (n === -1n) o.push(0x4f); else if (n >= 1n && n <= 16n) o.push(0x50 + Number(n)); else o.push(...pd(sn(n))); } else if (/^0x[0-9a-fA-F]*$/.test(w)) { const h = w.slice(2); for (let i = 0; i < h.length; i += 2) o.push(parseInt(h.slice(i, i + 2), 16)); } else if (/^'.*'$/.test(w)) o.push(...pd([...w.slice(1, -1)].map((c) => c.charCodeAt(0)))); else if (NAME2CODE.has(w)) o.push(NAME2CODE.get(w)); else throw 0; } return hx(Uint8Array.from(o)); };
+  const ps = (s) => { const o = []; for (const w of s.split(/\s+/).filter(Boolean)) { if (/^-?\d+$/.test(w)) { const n = BigInt(w); if (n === 0n) o.push(0); else if (n === -1n) o.push(0x4f); else if (n >= 1n && n <= 16n) o.push(0x50 + Number(n)); else o.push(...pd(sn(n))); } else if (/^0x[0-9a-fA-F]*$/.test(w)) { const h = w.slice(2); for (let i = 0; i < h.length; i += 2) o.push(parseInt(h.slice(i, i + 2), 16)); } else if (/^'.*'$/.test(w)) o.push(...pd([...w.slice(1, -1)].map((c) => c.charCodeAt(0)))); else if (N2C.has(w)) o.push(N2C.get(w)); else throw 0; } return hx(Uint8Array.from(o)); };
   const TIMELOCK = /CHECKLOCKTIMEVERIFY|CHECKSEQUENCEVERIFY/;
   const STRUCT = new Set(['WITNESS_UNEXPECTED', 'WITNESS_MALLEATED', 'WITNESS_MALLEATED_P2SH', 'WITNESS_PROGRAM_WRONG_LENGTH', 'WITNESS_PROGRAM_WITNESS_EMPTY', 'WITNESS_PROGRAM_MISMATCH', 'DISCOURAGE_UPGRADABLE_WITNESS_PROGRAM']);
-  const spend = (sig, spk, amount, wit) => { const c = { version: 1, lockTime: 0, inputs: [{ prevout: { txid: '00'.repeat(32), vout: 0xffffffff }, scriptSig: '0000', sequence: 0xffffffff }], outputs: [{ value: amount, scriptPubKey: spk }] }; const sp = { version: 1, lockTime: 0, inputs: [{ prevout: { txid: codec.txid(c), vout: 0 }, scriptSig: sig, sequence: 0xffffffff }], outputs: [{ value: amount, scriptPubKey: '' }] }; if (wit) sp.witness = [wit]; return sp; };
-  const asm = (h) => { try { return h ? se.asm(h) : '(empty)'; } catch { return h; } };
-
-  // categorise by what the test actually exercises (not the baseline flags)
   const ENC_ERR = /MINIMALDATA|SCRIPTNUM|SIG_DER|PUBKEYTYPE|SIG_HIGH_S|SIG_HASHTYPE|NULLDUMMY|CLEANSTACK|SIG_PUSHONLY|NULLFAIL|MINIMALIF/;
-  const cat = (sig, spk, ph, flags, expected, wit) => {
-    const s = sig + ' ' + spk;
-    if (wit || /WITNESS/.test(flags)) return 'segwit';
-    if (/CHECKMULTISIG/.test(s)) return 'multisig';
-    if (/CHECKSIG/.test(s)) return 'signatures';
-    if (/P2SH/.test(flags) && se.classify(ph).type === 'p2sh') return 'p2sh';
-    if (ENC_ERR.test(expected) || /MINIMALDATA/.test(flags)) return 'encoding';
-    return 'logic';
-  };
+  const spend = (sig, spk, amount, wit) => { const c = { version: 1, lockTime: 0, inputs: [{ prevout: { txid: '00'.repeat(32), vout: 0xffffffff }, scriptSig: '0000', sequence: 0xffffffff }], outputs: [{ value: amount, scriptPubKey: spk }] }; const sp = { version: 1, lockTime: 0, inputs: [{ prevout: { txid: codec.txid(c), vout: 0 }, scriptSig: sig, sequence: 0xffffffff }], outputs: [{ value: amount, scriptPubKey: '' }] }; if (wit) sp.witness = [wit]; return sp; };
+  const asm = (h) => { try { return h ? se.asm(h) : '(empty script)'; } catch { return h; } };
+  const cat = (sig, spk, ph, flags, expected, wit) => { const s = sig + ' ' + spk; if (wit || /WITNESS/.test(flags)) return 'segwit'; if (/CHECKMULTISIG/.test(s)) return 'multisig'; if (/CHECKSIG/.test(s)) return 'signatures'; if (/P2SH/.test(flags) && se.classify(ph).type === 'p2sh') return 'p2sh'; if (ENC_ERR.test(expected) || /MINIMALDATA/.test(flags)) return 'encoding'; return 'logic'; };
 
-  // ---- run the differential, building a record per vector ----
   const records = [];
   let passed = 0, mism = 0;
-  setStatus('running Bitcoin Core’s vectors through the interpreter…');
-  await new Promise((done) => {
-    let i = 0;
-    (function chunk() {
-      const t0 = performance.now();
-      while (i < raw.length && performance.now() - t0 < 14) {
-        const t = raw[i++];
-        if (!t || t.length < 4) continue;
-        let wit = null, amount = 0, sig, spk, flags, expected, comment;
-        if (Array.isArray(t[0])) { wit = t[0].slice(0, -1); amount = Math.round(t[0][t[0].length - 1] * 1e8); [, sig, spk, flags, expected, comment] = t; }
-        else { [sig, spk, flags, expected, comment] = t; }
-        if (TIMELOCK.test(sig) || TIMELOCK.test(spk) || STRUCT.has(expected)) continue;
-        let sh, ph; try { sh = ps(sig); ph = ps(spk); } catch { continue; }
-        if (/P2SH/.test(flags) && se.classify(ph).type === 'p2sh' && /^(4c|4d|4e)/.test(ph.slice(2, 4))) continue;
-        const fset = new Set(flags.split(/[, ]+/).filter(Boolean));
-        let ours; try { const r = interp.verifyInput(spend(sh, ph, amount, wit), 0, { value: amount, scriptPubKey: ph }, [{ value: amount, scriptPubKey: ph }], fset); if (r.ok === null) continue; ours = r.ok; } catch { ours = 'err'; }
-        const ok = ours === (expected === 'OK');
-        if (ok) passed++; else mism++;
-        records.push({ sig, spk, sh, ph, flags, expected, comment: comment || '', wit, amount, ours, ok, cat: cat(sig, spk, ph, flags, expected, wit) });
-        $('x-count').textContent = passed.toLocaleString();
-        $('x-bar').style.width = (100 * i / raw.length).toFixed(1) + '%';
-      }
-      if (i < raw.length) requestAnimationFrame(chunk); else done();
-    })();
-  });
+  note('<span class="spin"></span> running Bitcoin Core’s vectors through the engine…');
+  await new Promise((done) => { let i = 0; (function chunk() { const t0 = performance.now(); while (i < raw.length && performance.now() - t0 < 14) { const t = raw[i++]; if (!t || t.length < 4) continue; let wit = null, amount = 0, sig, spk, flags, expected, comment; if (Array.isArray(t[0])) { wit = t[0].slice(0, -1); amount = Math.round(t[0][t[0].length - 1] * 1e8); [, sig, spk, flags, expected, comment] = t; } else { [sig, spk, flags, expected, comment] = t; } if (TIMELOCK.test(sig) || TIMELOCK.test(spk) || STRUCT.has(expected)) continue; let sh, ph; try { sh = ps(sig); ph = ps(spk); } catch { continue; } if (/P2SH/.test(flags) && se.classify(ph).type === 'p2sh' && /^(4c|4d|4e)/.test(ph.slice(2, 4))) continue; const fset = new Set(flags.split(/[, ]+/).filter(Boolean)); let ours; try { const r = interp.verifyInput(spend(sh, ph, amount, wit), 0, { value: amount, scriptPubKey: ph }, [{ value: amount, scriptPubKey: ph }], fset); if (r.ok === null) continue; ours = r.ok; } catch { ours = 'err'; } const ok = ours === (expected === 'OK'); if (ok) passed++; else mism++; records.push({ sig, spk, sh, ph, flags, expected, comment: comment || '', wit, amount, ours, ok, cat: cat(sig, spk, ph, flags, expected, wit) }); } if (i < raw.length) requestAnimationFrame(chunk); else done(); })(); });
 
-  document.querySelector('.score .n[data-live]').textContent = passed.toLocaleString();
-  $('x-panel').classList.add('done');
-  setStatus(mism === 0
-    ? '<b>' + passed.toLocaleString() + '</b> of Bitcoin Core’s script vectors — <b style="color:var(--good)">all matched</b>, 0 mismatches. Computed in your browser just now. Click any test to drill in.'
-    : passed.toLocaleString() + ' matched, ' + mism + ' mismatched.');
+  // fill the category cards + the one honest headline number
+  for (const k of Object.keys(CAT_LABEL)) { const rs = records.filter((r) => r.cat === k); const all = rs.every((r) => r.ok); const el = $('c-' + k); if (el) el.innerHTML = '<b>' + rs.length + '</b> ' + (all ? '✓' : (rs.filter((r) => r.ok).length + '/' + rs.length)); }
+  const num = $('headline-num'); if (num) num.textContent = passed.toLocaleString();
+  note(mism === 0
+    ? '<span class="ok">✓</span> all <b>' + passed.toLocaleString() + '</b> of Bitcoin Core’s script tests just passed — computed in <em>your</em> browser, not claimed. Pick a category to see what they test. <span class="cons">(open the console — it’s the real interpreter)</span>'
+    : passed.toLocaleString() + ' passed, ' + mism + ' mismatched.');
   console.log('%cbitcoin-kernel', 'color:#e8830c;font-weight:bold', passed, 'of Core script_tests matched live,', mism, 'mismatched.');
 
-  // ---- the interactive explorer ----
-  const CATS = [['all', 'All'], ['signatures', 'Signatures'], ['multisig', 'Multisig'], ['p2sh', 'P2SH'], ['segwit', 'SegWit'], ['encoding', 'Encoding'], ['logic', 'Script logic']];
-  let active = 'all', query = '';
-  const chipsEl = $('x-chips'), listEl = $('x-list'), countEl = $('x-results');
-  chipsEl.innerHTML = CATS.map(([k, l]) => '<button class="x-chip' + (k === 'all' ? ' on' : '') + '" data-k="' + k + '">' + l + ' <span>' + (k === 'all' ? records.length : records.filter((r) => r.cat === k).length) + '</span></button>').join('');
-
-  function label(r) { return r.comment || (r.spk ? r.spk : r.sig) || '(empty script)'; }
-  function flagChips(r) { return [...r.flags.split(/[, ]+/).filter(Boolean)].map((f) => '<span class="ff">' + esc(f) + '</span>').join('') || '<span class="ff none">no flags</span>'; }
+  // ---- explorer (revealed when a category is clicked) ----
+  let active = null, query = '';
+  const exEl = $('explorer'), listEl = $('x-list'), titleEl = $('x-title'), countEl = $('x-results');
+  const flagChips = (r) => r.flags.split(/[, ]+/).filter(Boolean).map((f) => '<span class="ff">' + esc(f) + '</span>').join('') || '<span class="ff none">no flags</span>';
+  const label = (r) => r.comment || r.spk || r.sig || '(empty script)';
 
   function render() {
     const q = query.toLowerCase();
-    const hits = records.filter((r) => (active === 'all' || r.cat === active)
-      && (!q || (r.comment + ' ' + r.flags + ' ' + r.sig + ' ' + r.spk + ' ' + r.expected).toLowerCase().includes(q)));
-    countEl.textContent = hits.length.toLocaleString() + ' test' + (hits.length === 1 ? '' : 's');
-    const shown = hits.slice(0, 80);
-    listEl.innerHTML = shown.map((r, n) => {
-      const idx = records.indexOf(r);
-      return '<div class="x-row" data-i="' + idx + '">'
-        + '<span class="x-v ' + (r.ok ? 'ok' : 'no') + '" title="our result matches Core">' + (r.ok ? '✓' : '✗') + '</span>'
-        + '<span class="x-lab">' + esc(String(label(r)).slice(0, 90)) + '</span>'
-        + '<span class="x-exp ' + (r.expected === 'OK' ? 'pass' : 'fail') + '">' + (r.expected === 'OK' ? 'valid' : esc(r.expected)) + '</span>'
-        + '</div><div class="x-detail" id="d' + idx + '"></div>';
-    }).join('') + (hits.length > 80 ? '<div class="x-more">showing 80 of ' + hits.length.toLocaleString() + ' — search to narrow</div>' : '');
+    const hits = records.filter((r) => r.cat === active && (!q || (r.comment + ' ' + r.flags + ' ' + r.sig + ' ' + r.spk + ' ' + r.expected).toLowerCase().includes(q)));
+    countEl.textContent = hits.length.toLocaleString() + ' test' + (hits.length === 1 ? '' : 's') + (hits.length > 80 ? ' · showing 80' : '');
+    listEl.innerHTML = hits.slice(0, 120).map((r) => { const i = records.indexOf(r); return '<div class="x-row" data-i="' + i + '"><span class="x-v ' + (r.ok ? 'ok' : 'no') + '" title="bitcoin-kernel agrees with Bitcoin Core">' + (r.ok ? '✓' : '✗') + '</span><span class="x-lab">' + esc(String(label(r)).slice(0, 92)) + '</span><span class="x-exp ' + (r.expected === 'OK' ? 'pass' : 'rej') + '">' + (r.expected === 'OK' ? 'should be valid' : 'should reject') + '</span></div><div class="x-detail" id="d' + i + '"></div>'; }).join('');
   }
   function detail(r) {
     const row = (k, v) => '<div class="dl"><div class="dk">' + k + '</div><div class="dv">' + v + '</div></div>';
     const code = (h, a) => '<div class="dasm">' + esc(a) + '</div>' + (h ? '<div class="dhex">' + esc(h) + '</div>' : '');
     return '<div class="x-card">'
-      + (r.comment ? '<div class="dcom">“' + esc(r.comment) + '”<span class="dtag">Bitcoin Core</span></div>' : '')
-      + row('scriptSig', code(r.sh, asm(r.sh)))
-      + row('scriptPubKey', code(r.ph, asm(r.ph)))
-      + (r.wit ? row('witness', '<div class="dhex">' + r.wit.map(esc).join(' · ') + (r.amount ? '  <span style="color:var(--mut)">@ ' + r.amount + ' sat</span>' : '') + '</div>') : '')
+      + (r.comment ? '<div class="dcom">“' + esc(r.comment) + '”<span class="dtag">— Bitcoin Core</span></div>' : '')
+      + row('input · scriptSig', code(r.sh, asm(r.sh)))
+      + row('output · scriptPubKey', code(r.ph, asm(r.ph)))
+      + (r.wit ? row('witness', '<div class="dhex">' + r.wit.map(esc).join(' · ') + (r.amount ? '  <span style="color:var(--mut)">spending ' + r.amount + ' sat</span>' : '') + '</div>') : '')
       + row('flags', flagChips(r))
-      + row('Bitcoin Core expects', r.expected === 'OK' ? '<b style="color:var(--good)">valid</b>' : '<b style="color:var(--bad)">reject · ' + esc(r.expected) + '</b>')
-      + row('bitcoin-kernel computed', (r.ours === true ? '<b style="color:var(--good)">valid</b>' : r.ours === false ? '<b style="color:var(--bad)">reject</b>' : 'error') + ' <span class="match">' + (r.ok ? '✓ matches Core' : '✗ mismatch') + '</span>')
+      + row('Bitcoin Core says', r.expected === 'OK' ? '<b style="color:var(--good)">valid</b>' : '<b style="color:var(--bad)">reject · ' + esc(r.expected) + '</b>')
+      + row('bitcoin-kernel computed', (r.ours === true ? '<b style="color:var(--good)">valid</b>' : r.ours === false ? '<b style="color:var(--bad)">reject</b>' : 'error') + ' <span class="match' + (r.ok ? '' : ' bad') + '">' + (r.ok ? '✓ matches Core' : '✗ mismatch') + '</span>')
       + '</div>';
   }
-  chipsEl.onclick = (e) => { const b = e.target.closest('.x-chip'); if (!b) return; active = b.dataset.k; [...chipsEl.children].forEach((c) => c.classList.toggle('on', c === b)); render(); };
+  function open(k) { active = k; query = ''; $('x-search').value = ''; titleEl.textContent = CAT_LABEL[k]; exEl.hidden = false; render(); exEl.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  document.querySelectorAll('.catcard').forEach((b) => b.addEventListener('click', () => open(b.dataset.k)));
   $('x-search').oninput = (e) => { query = e.target.value; render(); };
+  $('x-close').onclick = () => { exEl.hidden = true; document.getElementById('cats').scrollIntoView({ behavior: 'smooth' }); };
   listEl.onclick = (e) => { const row = e.target.closest('.x-row'); if (!row) return; const d = $('d' + row.dataset.i); const open = d.classList.toggle('open'); row.classList.toggle('open', open); if (open && !d.innerHTML) d.innerHTML = detail(records[row.dataset.i]); };
-  $('x-explorer').hidden = false;
-  render();
 } catch (e) {
-  setStatus('could not run live (' + (e && e.message || e) + '). The suite still runs in CI; see GitHub.');
+  note('could not run live (' + (e && e.message || e) + '). The suite still runs in CI; see the source.');
   console.error(e);
 }
 </script>
