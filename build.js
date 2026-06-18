@@ -51,12 +51,12 @@ const TEST_COUNT = 132;
 // The checklist: one row per rule area. Each recomputes something real, live.
 // [id, name, plain rule, evidence-tag, tag-class]
 const ROWS = [
-  ['pow', 'Proof of work', "A block counts only if its hash is below the network's target. That hash is double SHA-256 of the 80-byte header, the number miners spend energy pushing down.", 'real mainnet data', 'main'],
-  ['difficulty', 'Difficulty adjustment', 'Every 2016 blocks the target is recomputed from how long those blocks actually took, so new blocks keep arriving about every ten minutes.', 'real mainnet retarget', 'main'],
-  ['merkle', 'A block commits to its transactions', 'The header carries one merkle root built from every transaction in the block. Change any transaction and the root changes, so the header pins down the whole block.', 'real mainnet block', 'main'],
-  ['money', 'No transaction creates money', 'The only new bitcoin is the block subsidy, which halves every 210000 blocks. No transaction may pay out more than it takes in. This is the 21 million limit.', 'consensus arithmetic', 'calc'],
-  ['script', 'Spending requires satisfying the script', 'Every coin is locked behind a small script. To spend it you must supply inputs that make that script succeed: the right signatures, hashes and values.', "Bitcoin Core's own tests", 'core'],
-  ['spv', 'Light clients can prove inclusion', 'You can prove one transaction is in a block without downloading the block, using a short merkle proof that a phone can check in microseconds.', 'real mainnet proof', 'main'],
+  ['pow', 'Mining: the proof of work', "A block only counts if its fingerprint comes out a small enough number. Finding one is the lottery miners burn electricity to win, and the block's contents fix the answer so no one can fake it.", 'real Bitcoin history', 'main'],
+  ['difficulty', 'Keeping blocks ten minutes apart', 'About every two weeks Bitcoin adjusts how hard mining is, based on how fast the last stretch of blocks arrived, so a new block keeps landing roughly every ten minutes no matter how much mining power joins.', 'real Bitcoin history', 'main'],
+  ['merkle', 'A block is sealed against tampering', 'Each block carries a single fingerprint of all the payments inside it. Change one payment by a satoshi and that fingerprint breaks, so a block cannot be quietly altered after the fact.', 'real Bitcoin history', 'main'],
+  ['money', 'No one can print bitcoin', 'New bitcoin comes only from the block reward, which halves every four years, and no payment can ever spend more than it holds. That is why there will only ever be 21 million.', 'just arithmetic', 'calc'],
+  ['script', 'Only the owner can spend', 'Every coin is locked by a small condition, and to spend it you have to satisfy that condition, normally by signing with the right key. This is where most of the rules, and most of the attacks, live.', "Bitcoin Core's own tests", 'core'],
+  ['spv', 'A phone can verify a payment', 'Your phone can confirm a payment really landed in the chain without downloading all of Bitcoin, by checking a tiny proof instead of the whole block.', 'real Bitcoin history', 'main'],
 ];
 
 // Five bugs the script differential found in OUR engine, in plain words.
@@ -151,7 +151,7 @@ try {
     const pass = hash === g.expected.hash && under;
     const blk = codec.decode('Block', g.hex);
     const mroot = codec.merkleRoot(blk.transactions.map((t) => codec.txid(t)));
-    if (pass) ok('pow', 'hash ' + trunc(hash) + ' is below target'); else fail('pow', 'mismatch');
+    if (pass) ok('pow', 'rebuilt the genesis block hash, and it matches'); else fail('pow', 'mismatch');
     body('pow', dl([
       ['the block', "Bitcoin's genesis block, mined by Satoshi on 3 January 2009."],
       ['80-byte header', mono(hdrHex)],
@@ -171,7 +171,7 @@ try {
     const bits = he.expectedBits(last, rt.epochLastHeight, first);
     const pass = bits === next.bits;
     const days = ((last.time - first.time) / 86400).toFixed(2);
-    if (pass) ok('difficulty', 'next target 0x' + bits.toString(16) + ', matches the network'); else fail('difficulty', 'mismatch');
+    if (pass) ok('difficulty', 'reproduced a real difficulty change, matching the network'); else fail('difficulty', 'mismatch');
     body('difficulty', dl([
       ['the epoch', 'mainnet blocks ' + rt.epochFirstHeight.toLocaleString() + ' to ' + rt.epochLastHeight.toLocaleString() + ', 2016 blocks'],
       ['time they took', days + ' days (the target is 14.00)'],
@@ -190,7 +190,7 @@ try {
     const root = codec.merkleRoot(txids);
     const bhash = codec.blockHash(hdr);
     const pass = root === hdr.merkleRoot;
-    if (pass) ok('merkle', 'rebuilt root ' + trunc(root) + ' from ' + txids.length + ' transactions'); else fail('merkle', 'mismatch');
+    if (pass) ok('merkle', 'rebuilt block 100,000 from its ' + txids.length + ' transactions'); else fail('merkle', 'mismatch');
     body('merkle', dl([
       ['the block', 'a real mainnet block, hash ' + mono(bhash)],
       ['its ' + txids.length + ' transactions', txids.map((t) => mono(trunc(t, 12, 8))).join('<br>')],
@@ -206,7 +206,7 @@ try {
     const cbVal = blk.transactions[0].outputs.reduce((s, o) => s + o.value, 0);
     const sub = (h) => { let s = 5000000000n; s >>= BigInt(Math.floor(h / 210000)); return Number(s) / 1e8; };
     const schedule = [0, 210000, 420000, 630000, 840000].map((h) => sub(h));
-    ok('money', '50 → 25 → 12.5 → 6.25 BTC, halving on schedule');
+    ok('money', '50 to 25 to 12.5 to 6.25 BTC, the halvings, on schedule');
     body('money', dl([
       ['block subsidy', schedule.map((v, i) => (i ? ' → ' : '') + v).join('') + ' BTC, halving every 210000 blocks'],
       ['genesis coinbase paid', '<b style="color:' + GOOD + '">' + (cbVal / 1e8).toFixed(8) + ' BTC</b>, exactly the subsidy at height 0'],
@@ -222,7 +222,7 @@ try {
     const verdict = spv.verify(mb, { txid: mbv.txid });
     const pass = verdict.ok === true;
     const nHashes = (mb.hashes || []).length;
-    if (pass) ok('spv', 'proved tx ' + trunc(mbv.txid) + ' is in block 100,000'); else fail('spv', 'proof failed');
+    if (pass) ok('spv', 'proved a payment is in block 100,000'); else fail('spv', 'proof failed');
     body('spv', dl([
       ['the claim', 'transaction ' + mono(mbv.txid) + ' is in block 100,000'],
       ['the proof', 'just ' + nHashes + ' hashes, not the whole block'],
@@ -266,7 +266,7 @@ async function runScripts(codec, scriptSchema, chainSchema) {
 
   const TOTAL = records.length;
   const num = $('headline-num'); if (num) num.textContent = TOTAL.toLocaleString();
-  if (mism === 0) ok('script', 'all ' + TOTAL.toLocaleString() + " of Core's script tests agree");
+  if (mism === 0) ok('script', 'all ' + TOTAL.toLocaleString() + " of Core's own tests agree");
   else fail('script', mism + ' of ' + TOTAL.toLocaleString() + ' disagreed');
   console.log('%cscript', 'color:#e8830c', passed, 'matched Core,', mism, 'mismatched.');
 
@@ -429,22 +429,22 @@ const html = `<!doctype html>
 </div></nav>
 
 <header class="hero"><div class="wrap">
-  <div class="kicker">A second, independent Bitcoin validator</div>
-  <h1>Bitcoin's rules, <b>rechecked from scratch</b>.</h1>
-  <p class="lede">Every Bitcoin node enforces the same rulebook: what makes a valid header, transaction and block. We wrote a second engine for those rules, sharing none of Bitcoin Core's code. On this page it recomputes real Bitcoin facts in front of you, live in your browser. The genesis block's hash, a real difficulty retarget, block 100,000's merkle root, an inclusion proof, and <span id="headline-num">1,191</span> of Bitcoin Core's own script tests.</p>
+  <div class="kicker">Bitcoin's rules deserve a second opinion</div>
+  <h1>Almost all of Bitcoin runs <b>one program</b>. We built a second.</h1>
+  <p class="lede">Bitcoin's whole promise is that nobody is in charge. The quiet catch: almost every node on the network runs the same software, Bitcoin Core. So one codebase effectively decides what Bitcoin is. A hidden bug in it, or pressure on the few people who maintain it, is a bug in Bitcoin itself. The healthy answer is more than one independent program, agreeing to the byte. We wrote one. And you do not have to take our word that it agrees: below, it recomputes real Bitcoin facts in front of you, live in your browser. The genesis block, a real difficulty change, block 100,000, and <span id="headline-num">1,191</span> of Bitcoin Core's own tests.</p>
   <div class="srcrow">
     <a href="./engine/codec/interpreter.js">read the engine →</a>
     <a href="./engine/schema/validate.jsonld">the rules as a spec →</a>
     <a href="${CORE_TESTS}">Core's tests →</a>
     <a href="https://github.com/bitcoin-kernel/bitcoin-kernel.github.io">source →</a>
   </div>
-  <p class="legend">Each rule below recomputes a real value live. The tag says where to check it: <b style="color:${C.good}">real mainnet data</b> you can verify on any block explorer, <b style="color:#a35a08">Bitcoin Core's own tests</b>, or plain <b>consensus arithmetic</b>. Click any rule to see the inputs and the working.</p>
+  <p class="legend">Each rule below is worked out live, right now, on your machine. The tag shows where you can check it yourself: <b style="color:${C.good}">real Bitcoin history</b> you can look up on any block explorer, <b style="color:#a35a08">Bitcoin Core's own tests</b>, or plain <b>arithmetic</b>. Click any rule to watch it work.</p>
   <div id="checklist">${ROWS.map(ruleRow).join('')}</div>
 </div></header>
 
 <section id="why"><div class="wrap">
-  <h2>Why build a second one? Because it finds real bugs.</h2>
-  <p class="sub">With only one program defining Bitcoin you cannot tell a real rule from an accident of how it was written. A second, independent engine is a cross check. Running Bitcoin Core's script tests through ours caught <strong>five real bugs in our engine</strong>, each a place it would have quietly disagreed with the network on a real transaction. All five are fixed, and each is now a permanent test.</p>
+  <h2>Why a second one? Because it catches real bugs.</h2>
+  <p class="sub">A single program cannot check itself. A second, independent one can. The first time we ran Bitcoin Core's tests through ours, they caught <strong>five real bugs in our engine</strong>, each a spot where it would have quietly disagreed with the network on a real transaction. That is the whole point: disagreement you find on a test bench instead of in production. All five are fixed, and each is now a permanent test.</p>
   <div class="bugs">${BUGS.map(([t, d]) => `<div class="bug"><h4>${esc(t)}</h4><p>${esc(d)}</p></div>`).join('')}</div>
 </div></section>
 
