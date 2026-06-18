@@ -59,7 +59,10 @@
   .dasm{font:.84rem/1.5 var(--mono);color:var(--fg);word-break:break-word}
   .dhex{font:.72rem/1.4 var(--mono);color:var(--mut);word-break:break-all;margin-top:.3rem}
   .match{font:600 .72rem var(--mono);color:var(--good);margin-left:.5rem}.match.bad{color:var(--bad)}
-  .explain{margin:2.4rem 0 0;color:var(--mut);font-size:.98rem;line-height:1.6}.explain b{color:var(--fg)}
+  .how{margin:2.6rem 0 0}
+  .how h2{font-size:1.2rem;letter-spacing:-.3px;margin:0 0 .8rem}
+  .how ol{margin:0;padding-left:1.3rem;color:var(--mut);font-size:.96rem}
+  .how li{margin:.55rem 0;line-height:1.55}.how b{color:var(--fg)}
   footer{margin-top:2.4rem;padding:2rem 0;border-top:1px solid var(--bd);color:var(--mut);font-size:.85rem}
   footer .links{display:flex;gap:1.4rem;flex-wrap:wrap;margin-bottom:.9rem}
   .fnote{font:.8rem/1.6 var(--mono);color:var(--mut);max-width:54rem}
@@ -93,7 +96,15 @@
     </div>
   </div>
 
-  <p class="explain">These suites run real <b>test vectors</b>: <a href="https://github.com/bitcoin/bitcoin/blob/master/src/test/data/script_tests.json">Bitcoin Core's own script vectors</a>, real mainnet headers, real difficulty retargets, a real block and its proofs. <b>bitcoin-kernel</b> is a fresh, independent re-implementation of Bitcoin's consensus rules. The page runs every vector through it, here in your browser, and shows the result. Every one is correct.</p>
+  <section class="how">
+    <h2>How it works</h2>
+    <ol>
+      <li><b>Real test vectors.</b> <a href="https://github.com/bitcoin/bitcoin/blob/master/src/test/data/script_tests.json">Bitcoin Core's own script vectors</a>, real mainnet headers, real difficulty retargets, a real block and real inclusion proofs.</li>
+      <li><b>An independent checker.</b> bitcoin-kernel is a fresh re-implementation of Bitcoin's consensus rules, sharing no code with Bitcoin Core.</li>
+      <li><b>Run on your machine.</b> The page runs every vector through it in your browser, with no server and nothing fetched at runtime.</li>
+      <li><b>A green check means it agrees.</b> bitcoin-kernel got the same answer the network does. The mainnet ones you can verify on any block explorer.</li>
+    </ol>
+  </section>
 </div>
 
 <footer><div class="wrap">
