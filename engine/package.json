@@ -1,0 +1,33 @@
+{
+  "name": "bitcoin-kernel",
+  "version": "0.0.1",
+  "description": "An independent, zero-dependency implementation of Bitcoin's consensus rules. Runs in Node and the browser.",
+  "type": "module",
+  "main": "./index.js",
+  "module": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./codec/*": "./codec/*",
+    "./schema/*": "./schema/*"
+  },
+  "files": [
+    "index.js",
+    "codec/",
+    "schema/"
+  ],
+  "sideEffects": false,
+  "keywords": [
+    "bitcoin",
+    "consensus",
+    "validation",
+    "script",
+    "esm",
+    "browser"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bitcoin-kernel/bitcoin-kernel.github.io.git"
+  },
+  "homepage": "https://bitcoin-kernel.github.io/"
+}

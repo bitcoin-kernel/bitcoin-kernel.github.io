@@ -23,6 +23,63 @@ for (const f of ['script_tests.json', 'genesis-block.json', 'retarget-modern.jso
   await copyFile(src('test/vectors/' + f), here('engine/vectors/' + f));
 }
 
+// --- make engine/ an importable ESM library: the `bitcoin-kernel` package ---
+// Bundle the JSON-LD schemas as JS modules so `import` works in the browser too
+// (no fetch, no JSON import attributes), then emit a barrel + factory + manifest.
+for (const k of ['core', 'proof', 'script', 'chain', 'validate']) {
+  const data = (await readFile(here('engine/schema/' + k + '.jsonld'), 'utf8')).trim();
+  await writeFile(here('engine/schema/' + k + '.js'), 'export default ' + data + ';\n');
+}
+await writeFile(here('engine/index.js'), `// bitcoin-kernel: an independent, zero-dependency implementation of Bitcoin's
+// consensus rules. Pure ESM; the same code runs in Node and in the browser.
+import { Codec } from './codec/codec.js';
+import { ScriptEngine } from './codec/script.js';
+import { ScriptInterpreter } from './codec/interpreter.js';
+import { HeaderEngine } from './codec/headers.js';
+import { BlockEngine } from './codec/blocks.js';
+import { SpvEngine } from './codec/spv.js';
+import core from './schema/core.js';
+import proof from './schema/proof.js';
+import script from './schema/script.js';
+import chain from './schema/chain.js';
+import validate from './schema/validate.js';
+
+export { Codec, ScriptEngine, ScriptInterpreter, HeaderEngine, BlockEngine, SpvEngine };
+export * from './codec/hash.js';
+export * from './codec/secp256k1.js';
+
+export const schemas = { core, proof, script, chain, validate };
+
+// Build a fully wired set of engines from the bundled schemas.
+export function createKernel() {
+  const codec = new Codec(core, proof);
+  const scriptEngine = ScriptEngine.fromSchemas(script, chain);
+  const limits = script['@graph'].find((n) => n['@id'] === 'btc:scriptLimits');
+  const interpreter = new ScriptInterpreter(codec, scriptEngine, limits);
+  const headers = HeaderEngine.fromSchemas(codec, chain, validate);
+  const blocks = BlockEngine.fromSchemas(codec, chain, validate, script);
+  const spv = SpvEngine.fromSchemas(codec, validate);
+  return { codec, script: scriptEngine, interpreter, headers, blocks, spv, schemas };
+}
+
+export default createKernel;
+`);
+await writeFile(here('engine/package.json'), JSON.stringify({
+  name: 'bitcoin-kernel',
+  version: '0.0.1',
+  description: "An independent, zero-dependency implementation of Bitcoin's consensus rules. Runs in Node and the browser.",
+  type: 'module',
+  main: './index.js',
+  module: './index.js',
+  exports: { '.': './index.js', './codec/*': './codec/*', './schema/*': './schema/*' },
+  files: ['index.js', 'codec/', 'schema/'],
+  sideEffects: false,
+  keywords: ['bitcoin', 'consensus', 'validation', 'script', 'esm', 'browser'],
+  license: 'MIT',
+  repository: { type: 'git', url: 'git+https://github.com/bitcoin-kernel/bitcoin-kernel.github.io.git' },
+  homepage: 'https://bitcoin-kernel.github.io/',
+}, null, 2) + '\n');
+
 const VERSION = JSON.parse(await readFile(src('package.json'))).version;
 const CORE_TESTS = 'https://github.com/bitcoin/bitcoin/blob/master/src/test/data/script_tests.json';
 const ENGINE_REPO = 'https://github.com/bitcoin-desktop/schema';
