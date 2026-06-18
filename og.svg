@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" font-family="DejaVu Sans, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#fbfaf7"/>
+    </linearGradient>
+    <linearGradient id="top" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f59e2c"/>
+      <stop offset="1" stop-color="#e8830c"/>
+    </linearGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="22" flood-color="#10121d" flood-opacity="0.07"/>
+    </filter>
+  </defs>
+
+  <!-- background -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="1150" cy="40" r="320" fill="#e8830c" opacity="0.05"/>
+  <circle cx="1120" cy="120" r="180" fill="#e8830c" opacity="0.05"/>
+  <!-- top accent bar -->
+  <rect width="1200" height="8" fill="url(#top)"/>
+
+  <!-- brand -->
+  <text x="80" y="92" font-size="29" font-weight="700" fill="#16181d" letter-spacing="-0.3">bitcoin<tspan fill="#e8830c">·</tspan>kernel</text>
+  <!-- eyebrow top-right -->
+  <text x="1120" y="90" text-anchor="end" font-size="17" font-weight="700" fill="#e8830c" letter-spacing="4.5">CONSENSUS TEST SUITE</text>
+
+  <!-- headline -->
+  <text x="78" y="262" font-size="62" font-weight="800" fill="#16181d" letter-spacing="-2">The rules of Bitcoin,</text>
+  <text x="78" y="332" font-size="46" font-style="italic" font-weight="600" fill="#37414d" letter-spacing="-0.6">tested <tspan fill="#e8830c" font-weight="700">live</tspan> in your browser.</text>
+
+  <!-- supporting line -->
+  <text x="80" y="392" font-size="22" fill="#5b6470">Every header, block and payment, checked against the same rules</text>
+  <text x="80" y="422" font-size="22" fill="#5b6470">every Bitcoin node enforces, from real test vectors.</text>
+
+  <!-- stats row -->
+  <g>
+    <text x="80" y="540" font-family="DejaVu Sans Mono, monospace" font-size="54" font-weight="700" fill="#1a7f37">1,191</text>
+    <text x="80" y="572" font-size="15" font-weight="700" fill="#5b6470" letter-spacing="2">PASSING</text>
+
+    <text x="312" y="540" font-family="DejaVu Sans Mono, monospace" font-size="54" font-weight="700" fill="#16181d">0</text>
+    <text x="312" y="572" font-size="15" font-weight="700" fill="#5b6470" letter-spacing="2">FAILING</text>
+
+    <text x="470" y="540" font-family="DejaVu Sans Mono, monospace" font-size="54" font-weight="700" fill="#16181d">6</text>
+    <text x="470" y="572" font-size="15" font-weight="700" fill="#5b6470" letter-spacing="2">SUITES</text>
+
+    <text x="600" y="540" font-family="DejaVu Sans Mono, monospace" font-size="20" font-weight="700" fill="#0969da">bitcoin-kernel.github.io</text>
+    <text x="600" y="572" font-size="15" font-weight="700" fill="#5b6470" letter-spacing="2">RUNS IN YOUR BROWSER</text>
+  </g>
+
+  <!-- results card -->
+  <g filter="url(#soft)">
+    <rect x="852" y="150" width="288" height="330" rx="18" fill="#ffffff" stroke="#e6e8eb" stroke-width="1.5"/>
+  </g>
+  <text x="884" y="194" font-family="DejaVu Sans Mono, monospace" font-size="13" font-weight="700" fill="#e8830c" letter-spacing="2.5">LIVE RESULTS</text>
+  <line x1="884" y1="210" x2="1108" y2="210" stroke="#eef0f2" stroke-width="1.5"/>
+
+  <g font-size="19" fill="#16181d">
+    <text x="912" y="248">Headers</text>
+    <text x="912" y="288">Difficulty</text>
+    <text x="912" y="328">Blocks</text>
+    <text x="912" y="368">Transactions</text>
+    <text x="912" y="408">Spending (scripts)</text>
+    <text x="912" y="448">Light clients (SPV)</text>
+  </g>
+  <g font-family="DejaVu Sans Mono, monospace" font-size="22" font-weight="700" fill="#1a7f37">
+    <text x="884" y="248">✓</text>
+    <text x="884" y="288">✓</text>
+    <text x="884" y="328">✓</text>
+    <text x="884" y="368">✓</text>
+    <text x="884" y="408">✓</text>
+    <text x="884" y="448">✓</text>
+  </g>
+</svg>
