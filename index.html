@@ -59,10 +59,11 @@
   .dasm{font:.84rem/1.5 var(--mono);color:var(--fg);word-break:break-word}
   .dhex{font:.72rem/1.4 var(--mono);color:var(--mut);word-break:break-all;margin-top:.3rem}
   .match{font:600 .72rem var(--mono);color:var(--good);margin-left:.5rem}.match.bad{color:var(--bad)}
-  .how{margin:2.6rem 0 0}
-  .how h2{font-size:1.2rem;letter-spacing:-.3px;margin:0 0 .8rem}
-  .how ol{margin:0;padding-left:1.3rem;color:var(--mut);font-size:.96rem}
-  .how li{margin:.55rem 0;line-height:1.55}.how b{color:var(--fg)}
+  .how{margin:3.4rem 0 0}
+  .how3{display:grid;grid-template-columns:repeat(3,1fr);gap:1.6rem;margin-top:1.6rem}
+  .how3 h3{margin:0 0 .35rem;font-size:1.05rem;letter-spacing:-.2px}
+  .how3 p{margin:0;color:var(--mut);font-size:.92rem;line-height:1.55}
+  @media(max-width:640px){.how3{grid-template-columns:1fr;gap:1.1rem}}
   footer{margin-top:2.4rem;padding:2rem 0;border-top:1px solid var(--bd);color:var(--mut);font-size:.85rem}
   footer .links{display:flex;gap:1.4rem;flex-wrap:wrap;margin-bottom:.9rem}
   .fnote{font:.8rem/1.6 var(--mono);color:var(--mut);max-width:54rem}
@@ -96,15 +97,14 @@
     </div>
   </div>
 
-  <section class="how">
-    <h2>How it works</h2>
-    <ol>
-      <li><b>Real test vectors.</b> <a href="https://github.com/bitcoin/bitcoin/blob/master/src/test/data/script_tests.json">Bitcoin Core's own script vectors</a>, real mainnet headers, real difficulty retargets, a real block and real inclusion proofs.</li>
-      <li><b>An independent checker.</b> bitcoin-kernel is a fresh re-implementation of Bitcoin's consensus rules, sharing no code with Bitcoin Core.</li>
-      <li><b>Run on your machine.</b> The page runs every vector through it in your browser, with no server and nothing fetched at runtime.</li>
-      <li><b>A green check means it agrees.</b> bitcoin-kernel got the same answer the network does. The mainnet ones you can verify on any block explorer.</li>
-    </ol>
-  </section>
+  <div class="how">
+    <h2 class="shead">How it works</h2>
+    <div class="how3">
+      <div><h3>The rules</h3><p>Bitcoin has a fixed set of consensus rules that decide whether a header, block or payment is valid. Every node on the network enforces the same ones.</p></div>
+      <div><h3>The library</h3><p>bitcoin-kernel is a JavaScript library that implements those rules from scratch. The same code runs on a Node server and right here in a browser tab.</p></div>
+      <div><h3>The test suite</h3><p>It ships with real <a href="https://github.com/bitcoin/bitcoin/blob/master/src/test/data/script_tests.json">test vectors</a>: Bitcoin Core's script vectors, real mainnet headers, blocks and proofs. This page runs the whole suite live, above.</p></div>
+    </div>
+  </div>
 </div>
 
 <footer><div class="wrap">
