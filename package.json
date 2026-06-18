@@ -1,0 +1,10 @@
+{
+  "name": "bitcoin-kernel-site",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "node build.js" },
+  "dependencies": {
+    "@bitcoin-desktop/schema": "github:bitcoin-desktop/schema#gh-pages"
+  }
+}
