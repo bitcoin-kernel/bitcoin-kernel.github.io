@@ -1,14 +1,18 @@
 # bitcoin-kernel
 
-An independent, auditable Bitcoin consensus engine — every rule a spec, every claim a test.
+An independent, auditable Bitcoin consensus engine that **proves itself in your browser**.
 
-The landing page at **https://bitcoin-kernel.github.io/** is **generated from the source of truth**:
-the consensus rules come straight from [`@bitcoin-desktop/schema`](https://github.com/bitcoin-desktop/schema)'s
-`validate.jsonld`, and the headline facts from its passing test suite.
+**https://bitcoin-kernel.github.io/** loads its own vendored copy of the engine and Bitcoin
+Core's own `script_tests.json`, and runs the differential live, same-origin — the numbers are
+computed on the page, not claimed. It found and fixed 5 real consensus bugs along the way.
+
+Fully standalone: the engine (`engine/codec/`), the consensus rules (`engine/schema/`), and
+Core's vectors (`engine/vectors/`) are vendored in. No runtime dependency on anything else.
 
 ```
-npm install   # pulls the schema (gh-pages)
-npm run build # regenerates index.html
+npm install   # dev-only: pulls the engine to vendor from
+npm run build # re-vendors engine + regenerates index.html
 ```
 
+Engine source: [@bitcoin-desktop/schema](https://github.com/bitcoin-desktop/schema).
 Independent community project; not affiliated with Bitcoin Core.

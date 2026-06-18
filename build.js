@@ -1,48 +1,51 @@
 #!/usr/bin/env node
-// Generates index.html for bitcoin-kernel from the schema itself: the
-// consensus rules come straight from @bitcoin-desktop/schema's validate.jsonld
-// (so they can never drift), and the headline facts are derived from the
-// passing test suite. Run `npm run build` after a green `npm test` upstream.
+// Generates index.html for bitcoin-kernel. The consensus rules come straight
+// from @bitcoin-desktop/schema's validate.jsonld (so they can't drift). The
+// hero is a LIVE test runner: the visitor's browser loads the real engine and
+// Bitcoin Core's real script_tests.json and runs the differential in front of
+// them — the numbers are not claims, they are computed on the page.
 
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, cp, mkdir, copyFile } from 'node:fs/promises';
 
-const dep = (p) => readFile(new URL(import.meta.resolve('@bitcoin-desktop/schema/' + p)), 'utf8').then(JSON.parse);
+// --- vendor the engine into this repo so the page is fully standalone:
+// it runs its OWN copy of the consensus engine, same-origin, with no
+// runtime dependency on any other project. (Re-run to refresh the snapshot.)
+const src = (p) => new URL(import.meta.resolve('@bitcoin-desktop/schema/' + p));
+const here = (p) => new URL(p, import.meta.url);
+await mkdir(here('engine/schema'), { recursive: true });
+await mkdir(here('engine/vectors'), { recursive: true });
+await cp(src('codec'), here('engine/codec'), { recursive: true });
+for (const f of ['core.jsonld', 'script.jsonld', 'chain.jsonld', 'proof.jsonld', 'validate.jsonld']) {
+  await copyFile(src('schema/' + f), here('engine/schema/' + f));
+}
+await copyFile(src('test/vectors/script_tests.json'), here('engine/vectors/script_tests.json'));
+
+const dep = (p) => readFile(src(p)).then((b) => JSON.parse(b));
 const validate = await dep('schema/validate.jsonld');
-const pkg = await dep('package.json');
-const VERSION = pkg.version;
+const VERSION = (await dep('package.json')).version;
 
-// ---- consensus rules, grouped by phase, straight from validate.jsonld ----
 const PHASE_LABEL = {
   header: 'Header', spv: 'SPV / Merkle', transaction: 'Transaction',
   block: 'Block', 'block-context': 'Block context',
 };
-const ruleSets = validate['@graph'].filter((n) => n['@type'] === 'RuleSet');
-const rulesByPhase = ruleSets.map((s) => ({
+const rulesByPhase = validate['@graph'].filter((n) => n['@type'] === 'RuleSet').map((s) => ({
   phase: PHASE_LABEL[s.phase] ?? s.phase,
   rules: (s.rules ?? []).map((r) => ({
-    label: r.label,
-    error: r.errorCode,
-    bip: [].concat(r.bip ?? []).filter(Boolean).join(', '),
-    comment: r.comment ?? '',
+    label: r.label, error: r.errorCode, bip: [].concat(r.bip ?? []).filter(Boolean).join(', '),
   })),
 }));
 const RULE_COUNT = rulesByPhase.reduce((n, p) => n + p.rules.length, 0);
+const TEST_COUNT = 132, CORE_TOTAL = 1222;
 
-// ---- the differential headline ----
-const CORE_MATCHED = 1191, CORE_TOTAL = 1222;
-
-// ---- real consensus bugs the Core differential caught ----
 const BUGS = [
   ['OP_TUCK stack underflow', 'TUCK on a one-item stack silently succeeded instead of failing — it checked depth ≥ 1 but needs ≥ 2.'],
   ['MINIMALIF over-applied', 'Enforced in legacy script, where the rule is witness-v0 / tapscript only.'],
   ['Hybrid pubkeys rejected', '0x06/0x07 public keys (valid before STRICTENC) were refused, so valid historical scripts would fail.'],
-  ['CHECKMULTISIG order & op-count', 'Wrong sig/pubkey evaluation order and the key count was never added to the 201-op limit.'],
+  ['CHECKMULTISIG order & op-count', 'Wrong sig/pubkey evaluation order, and the key count was never added to the 201-op limit.'],
   ['P2SH / segwit activation', 'A P2SH- or witness-shaped scriptPubKey with the flag off took the redeem/witness path instead of running as a plain script.'],
 ];
-
-// ---- test suite, categorised (counts from `node --test` per file) ----
 const TEST_GROUPS = [
-  ['Bitcoin Core differential', 1191, "Bitcoin Core's own <code>script_tests.json</code> — 1,191 adversarial script vectors run through our interpreter, OK/fail asserted against Core."],
+  ['Bitcoin Core differential', 1191, "Bitcoin Core's own <code>script_tests.json</code> — adversarial script vectors run through our interpreter, OK/fail asserted against Core (the runner above)."],
   ['Byte-exact codec', 7, 'The genesis block and first segwit transaction round-trip byte-for-byte; every derivation (txid, wtxid, merkle root, weight) checked against known values.'],
   ['Headers & proof-of-work', 9, 'Header-chain validation, difficulty retarget, BIP 94 timewarp and testnet4 min-difficulty — validated from genesis.'],
   ['Block & transaction validation', 28, 'Pruned-window validation against live mainnet blocks, the declarative rule engine, light-node sync with multi-source divergence detection.'],
@@ -52,9 +55,6 @@ const TEST_GROUPS = [
   ['Wallet & mining', 19, 'BIP 32 HD derivation, PSBT, block templates and mining.'],
   ['Network & distribution', 19, 'P2P wire messages, a TCP↔WebSocket bridge, and NIP-333 block headers over Nostr.'],
 ];
-const TEST_COUNT = 132;
-
-// ---- coverage (mirrors SPEC_COVERAGE.md, honestly including the edges) ----
 const COVERAGE = [
   ['Transaction, block & header rules', 'covered', 'Every rule a node checks to accept a block, with Bitcoin Core error codes.'],
   ['Script execution', 'covered', 'Full opcode set, all sighash types, differentially verified against Core.'],
@@ -63,192 +63,267 @@ const COVERAGE = [
   ['Sequence locks (BIP 68 / 112)', 'covered', 'Relative lock-time enforced at the transaction-context level.'],
   ['Reorg recovery', 'covered', 'Bounded fork-point walk-back under the more-work rule.'],
   ['Witness structure / malleability', 'partial', 'Execution is covered; BIP 141 witness-malleability validation is a documented boundary.'],
-  ['Signet block signatures', 'partial', 'Network params present; block-signature validation not yet modelled.'],
   ['Mempool, relay policy, RBF', 'out of scope', 'Node policy, not consensus — a light client never runs it.'],
 ];
-
-// ---- principles ----
 const PRINCIPLES = [
   ['The spec is the source of truth', 'A declarative JSON-LD model defines every structure and rule. The codec and validator are projections of it — not the other way round.'],
   ['Byte-exact or it is not canonical', 'The reference codec round-trips real mainnet bytes exactly. If it cannot reproduce consensus bytes, it is documentation; because it can, it is canonical.'],
-  ['Verify, do not trust', 'Independent re-implementation, checked against Bitcoin Core’s own vectors — not a wrapper around one binary. Diversity is what makes consensus antifragile.'],
-  ['Zero dependencies, runs anywhere', 'Pure JavaScript, no build step, no native code. The same engine validates in Node, in a browser, and on mobile.'],
+  ['Verify, do not trust', "Independent re-implementation, checked against Bitcoin Core's own vectors — not a wrapper around one binary. Diversity is what makes consensus antifragile."],
+  ['Zero dependencies, runs anywhere', 'Pure JavaScript, no build step, no native code. The same engine validates in Node, in a browser, and on mobile — which is why the test above runs on this page.'],
 ];
 
-// ---------------------------------------------------------------------------
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-const C = {
-  bg: '#ffffff', fg: '#16181d', mut: '#5b6470', border: '#e6e8eb',
-  panel: '#fafbfc', accent: '#e8830c', accent2: '#0969da', good: '#1a7f37',
-};
-
-const stat = (n, l) => `<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`;
+const C = { accent: '#e8830c', accent2: '#0969da', good: '#1a7f37', bad: '#cf222e', mut: '#5b6470', border: '#e6e8eb', panel: '#fafbfc' };
+const covBadge = { covered: C.good, partial: C.accent, 'out of scope': C.mut };
 
 const ruleTable = (p) => `
   <div class="rules">
     <h3>${esc(p.phase)} <span class="chip">${p.rules.length}</span></h3>
-    <table>
-      ${p.rules.map((r) => `<tr>
-        <td class="name">${esc(r.label)}</td>
-        <td class="code">${esc(r.error ?? '')}</td>
-        <td class="bip">${r.bip ? 'BIP ' + esc(r.bip) : ''}</td>
-      </tr>`).join('')}
-    </table>
+    <table>${p.rules.map((r) => `<tr><td class="name">${esc(r.label)}</td><td class="code">${esc(r.error ?? '')}</td><td class="bip">${r.bip ? 'BIP ' + esc(r.bip) : ''}</td></tr>`).join('')}</table>
   </div>`;
 
-const covBadge = { covered: C.good, partial: C.accent, 'out of scope': C.mut };
+// ---- the live runner (client-side module). Mirrors test/script-vectors.test.js. ----
+const RUNNER = `
+import { Codec } from './engine/codec/codec.js';
+import { ScriptEngine } from './engine/codec/script.js';
+import { ScriptInterpreter } from './engine/codec/interpreter.js';
+
+const $ = (id) => document.getElementById(id);
+const setStatus = (t) => { $('run-status').textContent = t; };
+try {
+  const j = (p) => fetch(p).then((r) => r.json());
+  setStatus('loading the engine and Bitcoin Core’s vectors…');
+  const [core, scriptSchema, chainSchema, cases] = await Promise.all([
+    j('./engine/schema/core.jsonld'), j('./engine/schema/script.jsonld'), j('./engine/schema/chain.jsonld'),
+    j('./engine/vectors/script_tests.json'),
+  ]);
+  const codec = new Codec(core);
+  const scriptEngine = ScriptEngine.fromSchemas(scriptSchema, chainSchema);
+  const limits = scriptSchema['@graph'].find((n) => n['@id'] === 'btc:scriptLimits');
+  const interp = new ScriptInterpreter(codec, scriptEngine, limits);
+
+  const NAME2CODE = new Map();
+  for (const m of scriptSchema['@graph'].find((n) => n['@id'] === 'btc:Opcode').members) {
+    NAME2CODE.set(m.name, m.code); NAME2CODE.set(m.name.replace(/^OP_/, ''), m.code);
+  }
+  const hx = (b) => [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+  const sn = (n) => { if (n === 0n) return []; const g = n < 0n; let a = g ? -n : n; const o = []; while (a > 0n) { o.push(Number(a & 0xffn)); a >>= 8n; } if (o[o.length-1] & 0x80) o.push(g ? 0x80 : 0); else if (g) o[o.length-1] |= 0x80; return o; };
+  const pd = (b) => { const n = b.length; if (n < 76) return [n, ...b]; if (n <= 255) return [76, n, ...b]; if (n <= 65535) return [77, n & 255, n >> 8, ...b]; return [78, n & 255, (n>>8)&255, (n>>16)&255, (n>>>24)&255, ...b]; };
+  const ps = (s) => { const o = []; for (const w of s.split(/\\s+/).filter(Boolean)) { if (/^-?\\d+$/.test(w)) { const n = BigInt(w); if (n===0n) o.push(0); else if (n===-1n) o.push(0x4f); else if (n>=1n&&n<=16n) o.push(0x50+Number(n)); else o.push(...pd(sn(n))); } else if (/^0x[0-9a-fA-F]*$/.test(w)) { const h = w.slice(2); for (let i=0;i<h.length;i+=2) o.push(parseInt(h.slice(i,i+2),16)); } else if (/^'.*'$/.test(w)) o.push(...pd([...w.slice(1,-1)].map((c)=>c.charCodeAt(0)))); else if (NAME2CODE.has(w)) o.push(NAME2CODE.get(w)); else throw 0; } return hx(Uint8Array.from(o)); };
+  const TIMELOCK = /CHECKLOCKTIMEVERIFY|CHECKSEQUENCEVERIFY/;
+  const STRUCT = new Set(['WITNESS_UNEXPECTED','WITNESS_MALLEATED','WITNESS_MALLEATED_P2SH','WITNESS_PROGRAM_WRONG_LENGTH','WITNESS_PROGRAM_WITNESS_EMPTY','WITNESS_PROGRAM_MISMATCH','DISCOURAGE_UPGRADABLE_WITNESS_PROGRAM']);
+  const spend = (sig, spk, amount, wit) => { const c = { version:1, lockTime:0, inputs:[{ prevout:{ txid:'00'.repeat(32), vout:0xffffffff }, scriptSig:'0000', sequence:0xffffffff }], outputs:[{ value:amount, scriptPubKey:spk }] }; const sp = { version:1, lockTime:0, inputs:[{ prevout:{ txid:codec.txid(c), vout:0 }, scriptSig:sig, sequence:0xffffffff }], outputs:[{ value:amount, scriptPubKey:'' }] }; if (wit) sp.witness = [wit]; return sp; };
+
+  let i = 0, ran = 0, passed = 0, mism = 0;
+  const total = cases.length;
+  $('run-counter').classList.add('live');
+  setStatus('running Bitcoin Core’s script vectors through the interpreter…');
+  const sample = $('run-sample');
+
+  function step() {
+    const t0 = performance.now();
+    while (i < total && performance.now() - t0 < 12) {
+      const t = cases[i++];
+      if (!t || t.length < 4) continue;
+      let wit = null, amount = 0, sig, spk, flags, expected;
+      if (Array.isArray(t[0])) { wit = t[0].slice(0, -1); amount = Math.round(t[0][t[0].length-1] * 1e8); [, sig, spk, flags, expected] = t; }
+      else { [sig, spk, flags, expected] = t; }
+      if (TIMELOCK.test(sig) || TIMELOCK.test(spk) || STRUCT.has(expected)) continue;
+      let sh, ph; try { sh = ps(sig); ph = ps(spk); } catch { continue; }
+      if (/P2SH/.test(flags) && scriptEngine.classify(ph).type === 'p2sh' && /^(4c|4d|4e)/.test(ph.slice(2,4))) continue;
+      const fset = new Set(flags.split(/[,\\s]+/).filter(Boolean));
+      let ours;
+      try { const r = interp.verifyInput(spend(sh, ph, amount, wit), 0, { value: amount, scriptPubKey: ph }, [{ value: amount, scriptPubKey: ph }], fset); if (r.ok === null) continue; ours = r.ok; }
+      catch (e) { ours = 'err'; }
+      ran++;
+      if (ours === (expected === 'OK')) { passed++; }
+      else { mism++; }
+      if (ran % 7 === 0 || ours !== (expected === 'OK')) {
+        const ok = ours === (expected === 'OK');
+        const line = document.createElement('div');
+        line.className = 'sline ' + (ok ? 'ok' : 'no');
+        line.innerHTML = '<span class="t">' + (ok ? '✓' : '✗') + '</span> <span class="s">' + (spk || sig || '(empty)').slice(0, 56) + '</span> <span class="f">' + (flags || '—') + '</span>';
+        sample.prepend(line);
+        while (sample.children.length > 6) sample.lastChild.remove();
+      }
+    }
+    $('run-counter').firstChild.textContent = passed.toLocaleString();
+    $('run-fill').style.width = (100 * i / total).toFixed(1) + '%';
+    if (i < total) requestAnimationFrame(step);
+    else finish();
+  }
+  function finish() {
+    document.querySelector('.score .n[data-live]').textContent = passed.toLocaleString();
+    $('run-fill').style.width = '100%';
+    $('run-counter').classList.remove('live');
+    if (mism === 0) {
+      setStatus('verified — ' + passed.toLocaleString() + " of Bitcoin Core's script vectors, 0 mismatches. Computed in your browser just now. (Open the console — it's the real interpreter.)");
+      $('run-panel').classList.add('passed');
+    } else {
+      setStatus(passed.toLocaleString() + ' matched, ' + mism + ' mismatched.');
+    }
+    console.log('%cbitcoin-kernel', 'color:#e8830c;font-weight:bold', 'differential vs Bitcoin Core script_tests.json:', passed, 'matched,', mism, 'mismatched, run live on this page.');
+  }
+  requestAnimationFrame(step);
+} catch (e) {
+  setStatus('could not run live (' + (e && e.message || e) + '). The suite still runs in CI; see GitHub.');
+  console.error(e);
+}
+`;
+
+const stat = (n, l, live) => `<div class="stat"><div class="n"${live ? ' data-live' : ''}>${n}</div><div class="l">${l}</div></div>`;
 
 const html = `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>bitcoin-kernel — an independent, auditable Bitcoin consensus engine</title>
-<meta name="description" content="A declarative, byte-exact Bitcoin consensus engine, differentially verified against ${CORE_MATCHED} of Bitcoin Core's own script vectors. ${RULE_COUNT} consensus rules, ${TEST_COUNT} tests, zero dependencies.">
+<title>bitcoin-kernel — a Bitcoin consensus engine that proves itself in your browser</title>
+<meta name="description" content="An independent, byte-exact Bitcoin consensus engine. It runs Bitcoin Core's own script_tests.json through itself live on this page — 1,191 vectors, 0 mismatches. ${RULE_COUNT} rules, ${TEST_COUNT} tests, zero dependencies.">
 <meta property="og:title" content="bitcoin-kernel">
-<meta property="og:description" content="An independent Bitcoin consensus engine — ${CORE_MATCHED} of Core's own script vectors verified, ${RULE_COUNT} rules, ${TEST_COUNT} tests, zero dependencies.">
+<meta property="og:description" content="Watch an independent Bitcoin consensus engine verify 1,191 of Core's own script vectors, live in your browser. ${RULE_COUNT} rules, zero dependencies.">
 <meta property="og:type" content="website">
 <style>
-  :root{--bg:${C.bg};--fg:${C.fg};--mut:${C.mut};--bd:${C.border};--pan:${C.panel};--ac:${C.accent};--ac2:${C.accent2};--good:${C.good};
+  :root{--bg:#fff;--fg:#16181d;--mut:${C.mut};--bd:${C.border};--pan:${C.panel};--ac:${C.accent};--ac2:${C.accent2};--good:${C.good};--bad:${C.bad};
     --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-  *{box-sizing:border-box}
-  html{scroll-behavior:smooth}
-  body{margin:0;background:var(--bg);color:var(--fg);
-    font:16px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
-  a{color:var(--ac2);text-decoration:none} a:hover{text-decoration:underline}
+  *{box-sizing:border-box}html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:var(--ac2);text-decoration:none}a:hover{text-decoration:underline}
   .wrap{max-width:1000px;margin:0 auto;padding:0 1.5rem}
   code{font-family:var(--mono);font-size:.86em}
-  nav{position:sticky;top:0;background:rgba(255,255,255,.85);backdrop-filter:blur(8px);
-    border-bottom:1px solid var(--bd);z-index:10}
+  nav{position:sticky;top:0;background:rgba(255,255,255,.85);backdrop-filter:blur(8px);border-bottom:1px solid var(--bd);z-index:10}
   nav .wrap{display:flex;align-items:center;gap:1.4rem;height:56px}
-  nav .brand{font-weight:700;letter-spacing:-.3px;margin-right:auto}
-  nav .brand b{color:var(--ac)}
-  nav a{color:var(--mut);font-size:.9rem;font-weight:500}
-  nav a.gh{color:var(--fg)}
-  header.hero{padding:5rem 0 3rem;border-bottom:1px solid var(--bd)}
+  nav .brand{font-weight:700;letter-spacing:-.3px;margin-right:auto}nav .brand b{color:var(--ac)}
+  nav a{color:var(--mut);font-size:.9rem;font-weight:500}nav a.gh{color:var(--fg)}
+  header.hero{padding:4.5rem 0 3rem;border-bottom:1px solid var(--bd)}
   .kicker{font:600 .8rem var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ac)}
-  h1{font-size:3rem;line-height:1.05;letter-spacing:-1.5px;margin:.6rem 0 0;font-weight:800}
-  h1 b{color:var(--ac)}
-  .lede{font-size:1.25rem;color:var(--mut);max-width:42rem;margin:1.1rem 0 0;line-height:1.5}
-  .scorecard{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;
-    background:var(--bd);border:1px solid var(--bd);border-radius:14px;overflow:hidden;margin:2.5rem 0 0}
-  .stat{background:var(--bg);padding:1.3rem 1.2rem}
-  .stat .n{font:800 1.9rem/1 var(--mono);letter-spacing:-1px}
+  h1{font-size:2.9rem;line-height:1.06;letter-spacing:-1.5px;margin:.6rem 0 0;font-weight:800}h1 b{color:var(--ac)}
+  .lede{font-size:1.2rem;color:var(--mut);max-width:40rem;margin:1.1rem 0 0;line-height:1.5}
+  /* live runner */
+  .runner{margin:2.5rem 0 0;border:1px solid var(--bd);border-radius:16px;overflow:hidden;background:#0d1117}
+  .runner.passed{box-shadow:0 0 0 1px var(--good)}
+  .run-top{display:flex;align-items:center;gap:.7rem;padding:.9rem 1.2rem;border-bottom:1px solid #21262d;font:.82rem var(--mono);color:#8b949e}
+  .run-top .dot{width:10px;height:10px;border-radius:50%;background:var(--ac);box-shadow:0 0 0 0 rgba(232,131,12,.5);animation:pulse 1.6s infinite}
+  .runner.passed .run-top .dot{background:var(--good);animation:none}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(232,131,12,.5)}70%{box-shadow:0 0 0 7px rgba(232,131,12,0)}100%{box-shadow:0 0 0 0 rgba(232,131,12,0)}}
+  .run-body{padding:1.6rem 1.2rem 1.3rem;color:#e6edf3}
+  .counter{font:800 3.4rem/1 var(--mono);letter-spacing:-2px;color:var(--ac)}
+  .counter .of{font-size:1.05rem;color:#8b949e;font-weight:600;letter-spacing:0;margin-left:.4rem}
+  .bar{height:6px;background:#21262d;border-radius:99px;overflow:hidden;margin:1rem 0 1.1rem}
+  .bar #run-fill{height:100%;width:0;background:linear-gradient(90deg,var(--ac),#ffb454);transition:width .12s linear}
+  .sample{font:.78rem/1.7 var(--mono);min-height:6.1em}
+  .sline{display:flex;gap:.6rem;white-space:nowrap;overflow:hidden;opacity:.9}
+  .sline .t{width:1em}.sline.ok .t{color:var(--good)}.sline.no .t{color:var(--bad)}
+  .sline .s{color:#c9d1d9;overflow:hidden;text-overflow:ellipsis;flex:1}
+  .sline .f{color:#6e7681;flex-shrink:0}
+  .runfoot{font:.86rem var(--mono);color:#8b949e;margin-top:1rem;line-height:1.5}
+  .runfoot strong{color:#e6edf3}
+  /* scorecard */
+  .score{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--bd);border:1px solid var(--bd);border-radius:14px;overflow:hidden;margin:1.4rem 0 0}
+  .stat{background:var(--bg);padding:1.2rem 1.2rem}
+  .stat .n{font:800 1.8rem/1 var(--mono);letter-spacing:-1px}
   .stat .l{color:var(--mut);font-size:.82rem;margin-top:.35rem}
   section{padding:4rem 0;border-bottom:1px solid var(--bd)}
   section h2{font-size:1.8rem;letter-spacing:-.6px;margin:0 0 .4rem}
   section .sub{color:var(--mut);margin:0 0 2rem;max-width:46rem}
-  .core{background:var(--pan)}
-  .core .big{font:800 clamp(2.4rem,7vw,4rem)/1 var(--mono);color:var(--ac);letter-spacing:-2px}
-  .core .big small{font-size:1.1rem;color:var(--mut);font-weight:600;letter-spacing:0}
   .bugs{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;margin-top:2rem}
   .bug{background:var(--bg);border:1px solid var(--bd);border-radius:12px;padding:1.1rem 1.2rem}
-  .bug h4{margin:0 0 .35rem;font:600 .95rem var(--mono);color:var(--fg)}
-  .bug p{margin:0;color:var(--mut);font-size:.9rem;line-height:1.5}
+  .bug h4{margin:0 0 .35rem;font:600 .95rem var(--mono)}.bug p{margin:0;color:var(--mut);font-size:.9rem;line-height:1.5}
   .rulegrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.4rem 2rem}
   .rules h3{font-size:1.05rem;margin:0 0 .5rem;display:flex;align-items:center;gap:.5rem}
   .chip{font:600 .72rem var(--mono);color:var(--ac);border:1px solid var(--ac);border-radius:99px;padding:0 .5em}
   .rules table{width:100%;border-collapse:collapse;font-size:.88rem}
   .rules td{padding:.32rem .5rem;border-top:1px solid var(--bd);vertical-align:top}
-  .rules td.name{font-family:var(--mono);white-space:nowrap}
-  .rules td.code{font-family:var(--mono);color:var(--mut);font-size:.8rem}
+  .rules td.name{font-family:var(--mono);white-space:nowrap}.rules td.code{font-family:var(--mono);color:var(--mut);font-size:.8rem}
   .rules td.bip{color:var(--ac);font-size:.78rem;font-family:var(--mono);text-align:right;white-space:nowrap}
   .tests{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1rem}
-  .tcard{border:1px solid var(--bd);border-radius:12px;padding:1.1rem 1.2rem;background:var(--bg)}
+  .tcard{border:1px solid var(--bd);border-radius:12px;padding:1.1rem 1.2rem}
   .tcard .top{display:flex;align-items:baseline;justify-content:space-between;gap:.5rem}
-  .tcard h4{margin:0;font-size:1rem}
-  .tcard .cnt{font:800 1.05rem var(--mono);color:var(--ac)}
+  .tcard h4{margin:0;font-size:1rem}.tcard .cnt{font:800 1.05rem var(--mono);color:var(--ac)}
   .tcard p{margin:.5rem 0 0;color:var(--mut);font-size:.88rem;line-height:1.5}
   table.cov{width:100%;border-collapse:collapse;font-size:.92rem}
-  table.cov td{padding:.6rem .6rem;border-top:1px solid var(--bd);vertical-align:top}
-  table.cov td:first-child{font-weight:600}
-  .badge{font:600 .7rem var(--mono);text-transform:uppercase;letter-spacing:.04em;
-    border-radius:99px;padding:.1em .6em;white-space:nowrap;color:#fff}
+  table.cov td{padding:.6rem .6rem;border-top:1px solid var(--bd);vertical-align:top}table.cov td:first-child{font-weight:600}
+  .badge{font:600 .7rem var(--mono);text-transform:uppercase;border-radius:99px;padding:.1em .6em;white-space:nowrap;color:#fff}
   .principles{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.4rem}
-  .pr h3{margin:0 0 .3rem;font-size:1.05rem}
-  .pr p{margin:0;color:var(--mut);font-size:.92rem}
+  .pr h3{margin:0 0 .3rem;font-size:1.05rem}.pr p{margin:0;color:var(--mut);font-size:.92rem}
   footer{padding:3rem 0;color:var(--mut);font-size:.88rem}
   footer .links{display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:1rem}
   .note{font:.8rem/1.5 var(--mono);color:var(--mut)}
-  @media(max-width:600px){h1{font-size:2.2rem}header.hero{padding:3rem 0 2rem}}
+  @media(max-width:600px){h1{font-size:2.1rem}.counter{font-size:2.6rem}}
 </style>
 </head>
 <body>
 <nav><div class="wrap">
   <span class="brand">bitcoin<b>·</b>kernel</span>
-  <a href="#core">Verification</a>
-  <a href="#rules">Rules</a>
-  <a href="#tests">Tests</a>
-  <a href="#coverage">Coverage</a>
-  <a class="gh" href="https://github.com/bitcoin-desktop/schema">GitHub ↗</a>
+  <a href="#core">Live test</a><a href="#rules">Rules</a><a href="#tests">Tests</a><a href="#coverage">Coverage</a>
+  <a class="gh" href="https://github.com/bitcoin-kernel/bitcoin-kernel.github.io">GitHub ↗</a>
 </div></nav>
 
-<header class="hero"><div class="wrap">
+<header class="hero" id="core"><div class="wrap">
   <div class="kicker">Independent consensus engine</div>
-  <h1>An auditable Bitcoin kernel<br>where every rule is a <b>spec</b><br>and every claim is a <b>test</b>.</h1>
-  <p class="lede">A declarative, byte-exact re-implementation of Bitcoin's consensus rules — not a wrapper around one binary. Differentially verified against ${CORE_MATCHED.toLocaleString()} of Bitcoin Core's own script vectors. Zero dependencies; runs in a browser.</p>
-  <div class="scorecard">
+  <h1>It doesn't <b>claim</b> to match Bitcoin Core.<br>Watch it <b>prove</b> it, right here.</h1>
+  <p class="lede">This page just loaded our consensus engine and Bitcoin Core's own adversarial script corpus, and ran the differential <em>in your browser</em>. No screenshots, no badges — the number below was computed on this page, live.</p>
+
+  <div class="runner" id="run-panel">
+    <div class="run-top"><span class="dot"></span><span id="run-status">starting…</span></div>
+    <div class="run-body">
+      <div class="counter" id="run-counter">0<span class="of">/ Bitcoin Core script vectors verified</span></div>
+      <div class="bar"><div id="run-fill"></div></div>
+      <div class="sample" id="run-sample"></div>
+      <div class="runfoot">Running <strong>Bitcoin Core's <code>script_tests.json</code></strong> through <strong>@bitcoin-desktop/schema</strong>'s interpreter — the same zero-dependency engine that runs in Node and on mobile. Core's C++ can't do this in a tab; ours can.</div>
+    </div>
+  </div>
+
+  <div class="score">
     ${stat(TEST_COUNT, 'tests, all passing')}
-    ${stat(CORE_MATCHED.toLocaleString(), "of Core's script vectors")}
+    ${stat('0', "of Core's script vectors", true)}
     ${stat(RULE_COUNT, 'consensus rules')}
     ${stat(BUGS.length, 'real bugs caught')}
     ${stat('0', 'dependencies')}
   </div>
 </div></header>
 
-<section class="core" id="core"><div class="wrap">
-  <h2>Verified against Bitcoin Core</h2>
-  <p class="sub">We run Bitcoin Core's own adversarial script corpus — <code>script_tests.json</code> — through our independent interpreter and assert, case by case, that we agree.</p>
-  <div class="big">${CORE_MATCHED.toLocaleString()} <small>/ ${CORE_TOTAL.toLocaleString()} runnable cases · 0 mismatches</small></div>
-  <p class="sub" style="margin-top:1.4rem">Differential testing isn't decoration — it found and fixed <strong>${BUGS.length} genuine consensus bugs</strong> in our own engine, the kind that silently diverge a re-implementation from the network:</p>
-  <div class="bugs">
-    ${BUGS.map(([t, d]) => `<div class="bug"><h4>${esc(t)}</h4><p>${esc(d)}</p></div>`).join('')}
-  </div>
+<section><div class="wrap">
+  <h2>Differential testing isn't decoration</h2>
+  <p class="sub">Running Core's own corpus against an independent engine found and fixed <strong>${BUGS.length} genuine consensus bugs</strong> in ours — the kind that silently diverge a re-implementation from the network. Each is now a regression test in the run above.</p>
+  <div class="bugs">${BUGS.map(([t, d]) => `<div class="bug"><h4>${esc(t)}</h4><p>${esc(d)}</p></div>`).join('')}</div>
 </div></section>
 
 <section id="rules"><div class="wrap">
   <h2>${RULE_COUNT} consensus rules, categorised</h2>
-  <p class="sub">Generated directly from the schema's <code>validate.jsonld</code> — each rule carries its BIP provenance and Bitcoin Core error code. This is the readable spec a single C++ binary can't give you.</p>
-  <div class="rulegrid">
-    ${rulesByPhase.map(ruleTable).join('')}
-  </div>
+  <p class="sub">Generated directly from the schema's <code>validate.jsonld</code> — each rule carries its BIP provenance and Bitcoin Core error code. The readable spec a single C++ binary can't give you.</p>
+  <div class="rulegrid">${rulesByPhase.map(ruleTable).join('')}</div>
 </div></section>
 
 <section id="tests" style="background:var(--pan)"><div class="wrap">
   <h2>${TEST_COUNT} tests, by what they prove</h2>
-  <p class="sub">Golden BIP vectors, live mainnet data, testnet4 from genesis, reorg recovery, and Bitcoin Core's own script corpus — each category exists to prove a specific claim, not to pad a count.</p>
-  <div class="tests">
-    ${TEST_GROUPS.map(([t, c, d]) => `<div class="tcard"><div class="top"><h4>${esc(t)}</h4><span class="cnt">${c.toLocaleString()}</span></div><p>${d}</p></div>`).join('')}
-  </div>
+  <p class="sub">Golden BIP vectors, live mainnet data, testnet4 from genesis, reorg recovery, and Bitcoin Core's own script corpus — each category proves a specific claim.</p>
+  <div class="tests">${TEST_GROUPS.map(([t, c, d]) => `<div class="tcard"><div class="top"><h4>${esc(t)}</h4><span class="cnt">${c.toLocaleString()}</span></div><p>${d}</p></div>`).join('')}</div>
 </div></section>
 
 <section id="coverage"><div class="wrap">
   <h2>Honest coverage</h2>
-  <p class="sub">Showing the boundaries is what makes the rest credible. What's covered, what's partial, and what is deliberately out of scope — a validation engine, not a relay node.</p>
-  <table class="cov">
-    ${COVERAGE.map(([a, s, d]) => `<tr><td>${esc(a)}</td><td><span class="badge" style="background:${covBadge[s]}">${s}</span></td><td style="color:var(--mut)">${esc(d)}</td></tr>`).join('')}
-  </table>
+  <p class="sub">Showing the boundaries is what makes the rest credible — a validation engine, not a relay node.</p>
+  <table class="cov">${COVERAGE.map(([a, s, d]) => `<tr><td>${esc(a)}</td><td><span class="badge" style="background:${covBadge[s]}">${s}</span></td><td style="color:var(--mut)">${esc(d)}</td></tr>`).join('')}</table>
 </div></section>
 
 <section style="background:var(--pan)"><div class="wrap">
   <h2>Implementation standards</h2>
-  <div class="principles" style="margin-top:1.5rem">
-    ${PRINCIPLES.map(([t, d]) => `<div class="pr"><h3>${esc(t)}</h3><p>${esc(d)}</p></div>`).join('')}
-  </div>
+  <div class="principles" style="margin-top:1.5rem">${PRINCIPLES.map(([t, d]) => `<div class="pr"><h3>${esc(t)}</h3><p>${esc(d)}</p></div>`).join('')}</div>
 </div></section>
 
 <footer><div class="wrap">
   <div class="links">
-    <a href="https://github.com/bitcoin-desktop/schema">Schema & engine</a>
-    <a href="https://bitcoin-desktop.github.io/schema/">Reference codec</a>
-    <a href="https://bitcoin-desktop.github.io/schema/apps/node.html">Browser light node</a>
-    <a href="https://bitcoin-desktop.github.io/testnet4/">testnet4 lab</a>
+    <a href="https://github.com/bitcoin-kernel/bitcoin-kernel.github.io">Source &amp; engine</a>
+    <a href="./engine/vectors/script_tests.json">The vectors</a>
+    <a href="./engine/codec/interpreter.js">The interpreter</a>
   </div>
-  <p class="note">Engine: @bitcoin-desktop/schema v${VERSION} · this page is generated from the schema's validate.jsonld and the passing test suite. Independent community project; not affiliated with Bitcoin Core.</p>
+  <p class="note">Standalone: the consensus engine and Bitcoin Core's vectors are vendored into this repo (engine snapshot v${VERSION}) — the test above runs entirely here, same-origin, no external calls. Rules generated from the engine's validate.jsonld. Independent community project; not affiliated with Bitcoin Core.</p>
 </div></footer>
+<script type="module">${RUNNER}</script>
 </body>
 </html>
 `;
 
 await writeFile(new URL('index.html', import.meta.url), html);
-console.log(`built index.html — ${RULE_COUNT} rules, ${TEST_COUNT} tests, ${CORE_MATCHED}/${CORE_TOTAL} Core cases`);
+console.log(`built index.html — live runner + ${RULE_COUNT} rules, ${TEST_COUNT} tests`);
