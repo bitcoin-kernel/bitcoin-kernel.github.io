@@ -306,6 +306,7 @@ const html = `<!doctype html>
   .sub{font-size:1.14rem;color:#37414d;margin:1rem auto 0;max-width:38rem;line-height:1.5}
   #runner{margin:2rem 0 0;border:1px solid var(--bd);border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(16,18,29,.06)}
   .rhead{padding:1.4rem;text-align:center;border-bottom:1px solid var(--bd);background:var(--pan)}
+  .rlabel{font:600 .72rem var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ac);margin-bottom:.5rem}
   .summary{font-size:1.05rem;color:var(--mut)}
   .summary .big{font:800 1.9rem var(--mono);letter-spacing:-1px;color:var(--good);vertical-align:-2px}
   .summary .big.bad{color:var(--bad)}.summary .zero{color:var(--mut);font-family:var(--mono)}
@@ -362,6 +363,7 @@ const html = `<!doctype html>
 <div class="wrap">
   <div id="runner">
     <div class="rhead">
+      <div class="rlabel">Consensus test suite</div>
       <div id="summary" class="summary"><span id="counter">0</span> tests</div>
       <p id="status"><span class="spin"></span> starting</p>
     </div>
