@@ -55,6 +55,16 @@ const PRINCIPLES = [
   ['Zero dependencies, runs anywhere', 'Pure JavaScript, no build step, no native code — which is why the explorer above runs the real engine on this page.'],
 ];
 
+// the six things Bitcoin script does — each a category a visitor can learn from
+const CATS = [
+  ['logic', 'The stack machine', 'Every script is a tiny program on a stack: push data, do arithmetic, branch on conditions, hash, compare. These are the raw opcode semantics everything else is built on.'],
+  ['signatures', 'Signatures', 'Does a signature actually authorise the spend? ECDSA verification, strict DER encoding, low-S, and sighash types — the rules that stop forged or malleable signatures.'],
+  ['multisig', 'Multisig', 'M-of-N: several keys must sign together. These probe the famous CHECKMULTISIG quirks — the off-by-one extra "dummy" pop, and strict signature/key ordering.'],
+  ['encoding', 'Canonical encoding', 'Minimal data pushes, strict number encoding, no malleability. The rules that make a transaction’s bytes the one true representation.'],
+  ['segwit', 'SegWit', 'Segregated Witness (BIP 141/143): the signature lives outside the txid. P2WPKH / P2WSH execution and the sighash that commits to the spent amount.'],
+  ['p2sh', 'Pay-to-Script-Hash', 'Funds locked to the hash of a redeem script (BIP 16): reveal the script in the input, the node hashes it, checks it matches, then runs it.'],
+];
+
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 const C = { accent: '#e8830c', accent2: '#0969da', good: '#1a7f37', bad: '#cf222e', mut: '#5b6470', border: '#e6e8eb', panel: '#fafbfc' };
 const covBadge = { covered: C.good, partial: C.accent, 'out of scope': C.mut };
@@ -96,13 +106,15 @@ try {
   const spend = (sig, spk, amount, wit) => { const c = { version: 1, lockTime: 0, inputs: [{ prevout: { txid: '00'.repeat(32), vout: 0xffffffff }, scriptSig: '0000', sequence: 0xffffffff }], outputs: [{ value: amount, scriptPubKey: spk }] }; const sp = { version: 1, lockTime: 0, inputs: [{ prevout: { txid: codec.txid(c), vout: 0 }, scriptSig: sig, sequence: 0xffffffff }], outputs: [{ value: amount, scriptPubKey: '' }] }; if (wit) sp.witness = [wit]; return sp; };
   const asm = (h) => { try { return h ? se.asm(h) : '(empty)'; } catch { return h; } };
 
-  const cat = (sig, spk, flags, wit) => {
+  // categorise by what the test actually exercises (not the baseline flags)
+  const ENC_ERR = /MINIMALDATA|SCRIPTNUM|SIG_DER|PUBKEYTYPE|SIG_HIGH_S|SIG_HASHTYPE|NULLDUMMY|CLEANSTACK|SIG_PUSHONLY|NULLFAIL|MINIMALIF/;
+  const cat = (sig, spk, ph, flags, expected, wit) => {
     const s = sig + ' ' + spk;
     if (wit || /WITNESS/.test(flags)) return 'segwit';
     if (/CHECKMULTISIG/.test(s)) return 'multisig';
     if (/CHECKSIG/.test(s)) return 'signatures';
-    if (/P2SH/.test(flags) && se.classify(spk).type === 'p2sh') return 'p2sh';
-    if (/STRICTENC|DERSIG|LOW_S|MINIMALDATA|NULLDUMMY|MINIMALIF/.test(flags)) return 'encoding';
+    if (/P2SH/.test(flags) && se.classify(ph).type === 'p2sh') return 'p2sh';
+    if (ENC_ERR.test(expected) || /MINIMALDATA/.test(flags)) return 'encoding';
     return 'logic';
   };
 
@@ -127,7 +139,7 @@ try {
         let ours; try { const r = interp.verifyInput(spend(sh, ph, amount, wit), 0, { value: amount, scriptPubKey: ph }, [{ value: amount, scriptPubKey: ph }], fset); if (r.ok === null) continue; ours = r.ok; } catch { ours = 'err'; }
         const ok = ours === (expected === 'OK');
         if (ok) passed++; else mism++;
-        records.push({ sig, spk, sh, ph, flags, expected, comment: comment || '', wit, amount, ours, ok, cat: cat(sig, spk, flags, wit) });
+        records.push({ sig, spk, sh, ph, flags, expected, comment: comment || '', wit, amount, ours, ok, cat: cat(sig, spk, ph, flags, expected, wit) });
         $('x-count').textContent = passed.toLocaleString();
         $('x-bar').style.width = (100 * i / raw.length).toFixed(1) + '%';
       }
@@ -296,7 +308,7 @@ const html = `<!doctype html>
 <header class="hero" id="core"><div class="wrap">
   <div class="kicker">Independent consensus engine</div>
   <h1>Browse Bitcoin Core's own script tests.<br>Each one <b>verified live</b>, in your browser.</h1>
-  <p class="lede">This page loaded our consensus engine and Bitcoin Core's adversarial <code>script_tests.json</code>, ran the whole differential here, and made every vector searchable. Click any test to see the real script disassembled and our computed verdict.</p>
+  <p class="lede">This page loaded our consensus engine and Bitcoin Core's adversarial <a href="https://github.com/bitcoin/bitcoin/blob/master/src/test/data/script_tests.json"><code>script_tests.json</code></a>, ran the whole differential here, and made every vector searchable. Click any test to see the real script disassembled and our computed verdict.</p>
 
   <div class="xwrap done-target" id="x-panel">
     <div class="xhead">

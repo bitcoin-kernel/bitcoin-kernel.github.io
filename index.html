@@ -102,7 +102,7 @@
 <header class="hero" id="core"><div class="wrap">
   <div class="kicker">Independent consensus engine</div>
   <h1>Browse Bitcoin Core's own script tests.<br>Each one <b>verified live</b>, in your browser.</h1>
-  <p class="lede">This page loaded our consensus engine and Bitcoin Core's adversarial <code>script_tests.json</code>, ran the whole differential here, and made every vector searchable. Click any test to see the real script disassembled and our computed verdict.</p>
+  <p class="lede">This page loaded our consensus engine and Bitcoin Core's adversarial <a href="https://github.com/bitcoin/bitcoin/blob/master/src/test/data/script_tests.json"><code>script_tests.json</code></a>, ran the whole differential here, and made every vector searchable. Click any test to see the real script disassembled and our computed verdict.</p>
 
   <div class="xwrap done-target" id="x-panel">
     <div class="xhead">
@@ -197,13 +197,15 @@ try {
   const spend = (sig, spk, amount, wit) => { const c = { version: 1, lockTime: 0, inputs: [{ prevout: { txid: '00'.repeat(32), vout: 0xffffffff }, scriptSig: '0000', sequence: 0xffffffff }], outputs: [{ value: amount, scriptPubKey: spk }] }; const sp = { version: 1, lockTime: 0, inputs: [{ prevout: { txid: codec.txid(c), vout: 0 }, scriptSig: sig, sequence: 0xffffffff }], outputs: [{ value: amount, scriptPubKey: '' }] }; if (wit) sp.witness = [wit]; return sp; };
   const asm = (h) => { try { return h ? se.asm(h) : '(empty)'; } catch { return h; } };
 
-  const cat = (sig, spk, flags, wit) => {
+  // categorise by what the test actually exercises (not the baseline flags)
+  const ENC_ERR = /MINIMALDATA|SCRIPTNUM|SIG_DER|PUBKEYTYPE|SIG_HIGH_S|SIG_HASHTYPE|NULLDUMMY|CLEANSTACK|SIG_PUSHONLY|NULLFAIL|MINIMALIF/;
+  const cat = (sig, spk, ph, flags, expected, wit) => {
     const s = sig + ' ' + spk;
     if (wit || /WITNESS/.test(flags)) return 'segwit';
     if (/CHECKMULTISIG/.test(s)) return 'multisig';
     if (/CHECKSIG/.test(s)) return 'signatures';
-    if (/P2SH/.test(flags) && se.classify(spk).type === 'p2sh') return 'p2sh';
-    if (/STRICTENC|DERSIG|LOW_S|MINIMALDATA|NULLDUMMY|MINIMALIF/.test(flags)) return 'encoding';
+    if (/P2SH/.test(flags) && se.classify(ph).type === 'p2sh') return 'p2sh';
+    if (ENC_ERR.test(expected) || /MINIMALDATA/.test(flags)) return 'encoding';
     return 'logic';
   };
 
@@ -228,7 +230,7 @@ try {
         let ours; try { const r = interp.verifyInput(spend(sh, ph, amount, wit), 0, { value: amount, scriptPubKey: ph }, [{ value: amount, scriptPubKey: ph }], fset); if (r.ok === null) continue; ours = r.ok; } catch { ours = 'err'; }
         const ok = ours === (expected === 'OK');
         if (ok) passed++; else mism++;
-        records.push({ sig, spk, sh, ph, flags, expected, comment: comment || '', wit, amount, ours, ok, cat: cat(sig, spk, flags, wit) });
+        records.push({ sig, spk, sh, ph, flags, expected, comment: comment || '', wit, amount, ours, ok, cat: cat(sig, spk, ph, flags, expected, wit) });
         $('x-count').textContent = passed.toLocaleString();
         $('x-bar').style.width = (100 * i / raw.length).toFixed(1) + '%';
       }
