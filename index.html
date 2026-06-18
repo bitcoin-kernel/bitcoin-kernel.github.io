@@ -15,7 +15,7 @@
   a{color:var(--ac2);text-decoration:none}a:hover{text-decoration:underline}
   .wrap{max-width:940px;margin:0 auto;padding:0 1.5rem}
   nav{border-bottom:1px solid var(--bd)}
-  nav .wrap{display:flex;align-items:center;height:56px}
+  nav .wrap{display:flex;align-items:center;gap:1.3rem;height:56px}
   nav .brand{font-weight:700;letter-spacing:-.3px;margin-right:auto}nav .brand b{color:var(--ac)}
   nav a{color:var(--mut);font-size:.9rem;font-weight:500}
   header.hero{padding:3.2rem 0 1.2rem;text-align:center}
@@ -49,7 +49,7 @@
   .v{color:var(--good);font:700 .95rem var(--mono);flex-shrink:0}.v.no{color:var(--bad)}
   .lab{flex:1;font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .exp{font:600 .68rem var(--mono);text-transform:uppercase;border-radius:5px;padding:.13em .5em;flex-shrink:0}
-  .exp.pass{background:#e6f4ea;color:var(--good)}.exp.rej{background:#eef1f4;color:#5b6470}
+  .exp.pass{background:#e6f4ea;color:var(--good)}.exp.fail{background:#fce8e8;color:var(--bad)}
   .detail{display:none}.detail.open{display:block;padding:.4rem 1.4rem 1.1rem 3rem;background:var(--pan)}
   .card{border:1px solid var(--bd);border-radius:10px;overflow:hidden;background:#fff}
   .dl{display:flex;border-top:1px solid var(--bd)}.dl:first-child{border-top:none}
@@ -73,6 +73,7 @@
 <body>
 <nav><div class="wrap">
   <span class="brand">bitcoin<b>·</b>kernel</span>
+  <a href="./spec.html">Specification</a>
   <a href="https://github.com/bitcoin-desktop/schema">Source ↗</a>
 </div></nav>
 
@@ -92,7 +93,7 @@
       <div class="tabs"><button class="tab" data-k="headers"><span class="tn">Headers</span><span class="tc" id="tc-headers">…</span></button><button class="tab" data-k="difficulty"><span class="tn">Difficulty</span><span class="tc" id="tc-difficulty">…</span></button><button class="tab" data-k="blocks"><span class="tn">Blocks</span><span class="tc" id="tc-blocks">…</span></button><button class="tab" data-k="money"><span class="tn">Transactions &amp; money</span><span class="tc" id="tc-money">…</span></button><button class="tab" data-k="scripts"><span class="tn">Spending (scripts)</span><span class="tc" id="tc-scripts">…</span></button><button class="tab" data-k="spv"><span class="tn">Light clients (SPV)</span><span class="tc" id="tc-spv">…</span></button></div>
       <div class="suitehead"><h2 id="suite-title">…</h2><p id="suite-desc"></p></div>
       <div class="searchrow"><input id="search" placeholder="search this suite" autocomplete="off"><span id="suite-count"></span></div>
-      <div class="legend"><b class="g">✓</b> bitcoin-kernel computed the correct result. In the scripts suite, each test is a payment that <b>should pass</b> or <b>should be rejected</b>. Click any test to see what it checks.</div>
+      <div class="legend"><b class="g">PASS</b> means bitcoin-kernel computed the correct result for that vector: it accepted what the network accepts and rejected what the network rejects. Click any test to see the vector and the result.</div>
       <div id="list"></div>
     </div>
   </div>
@@ -342,7 +343,7 @@ function wireExplorer() {
     descEl.textContent = SUITE_DESC[active];
     countEl.textContent = hits.length.toLocaleString() + ' tests' + (hits.length > 200 ? ', showing 200' : '');
     listEl.innerHTML = hits.slice(0, 200).map((t, n) => {
-      const tag = t.expect ? '<span class="exp ' + (t.expect === 'pass' ? 'pass' : 'rej') + '">' + (t.expect === 'pass' ? 'should pass' : 'should be rejected') + '</span>' : '';
+      const tag = '<span class="exp ' + (t.ok ? 'pass' : 'fail') + '">' + (t.ok ? 'PASS' : 'FAIL') + '</span>';
       return '<div class="row" data-n="' + n + '"><span class="v ' + (t.ok ? '' : 'no') + '">' + (t.ok ? '✓' : '✗') + '</span><span class="lab">' + esc(String(t.name).slice(0, 110)) + '</span>' + tag + '</div><div class="detail" id="dt' + n + '"></div>';
     }).join('');
     listEl._hits = hits;

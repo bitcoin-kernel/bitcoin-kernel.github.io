@@ -27,6 +27,28 @@ const VERSION = JSON.parse(await readFile(src('package.json'))).version;
 const CORE_TESTS = 'https://github.com/bitcoin/bitcoin/blob/master/src/test/data/script_tests.json';
 const ENGINE_REPO = 'https://github.com/bitcoin-desktop/schema';
 
+// --- normative rules, extracted from the source-of-truth ruleset (for spec.html) ---
+const validate = JSON.parse(await readFile(src('schema/validate.jsonld')));
+const PHASE = {
+  header: ['Header rules', 'Constraints every block header must satisfy: it links to the previous block, its proof of work meets the target, its timestamp is within range, its version is allowed at that height, and its difficulty is correct, including the testnet4 timewarp fix.'],
+  transaction: ['Transaction rules', 'Standalone validity of a transaction: it has at least one input and one output, no value exceeds the 21 million coin limit, and it never spends the same output twice.'],
+  block: ['Block rules', 'Internal consistency of a block: exactly one coinbase, placed first; the merkle root commits to every transaction; no duplicate transaction ids; and the size and signature-operation budgets are respected.'],
+  'block-context': ['Contextual block rules', 'Validity of a block against the chain state it extends: coinbase height and maturity, timelocks and sequence locks, every input unspent and available, non-negative fees, the witness commitment, and successful execution of every input script.'],
+  spv: ['Light client (SPV) rules', 'Verification of a merkle inclusion proof: a light client can confirm that a transaction is committed to by a block header without possessing the whole block.'],
+};
+const ORDER = ['header', 'transaction', 'block', 'block-context', 'spv'];
+const ruleSets = validate['@graph'].filter((n) => n['@type'] === 'RuleSet')
+  .map((s) => ({
+    phase: s.phase,
+    title: (PHASE[s.phase] ?? [s.phase, ''])[0],
+    blurb: (PHASE[s.phase] ?? ['', ''])[1],
+    rules: (s.rules ?? []).map((r) => ({ id: (r['@id'] || '').replace(/^btc:/, ''), label: r.label || '', error: r.errorCode || '', bip: [].concat(r.bip ?? []).filter(Boolean).join(', '), comment: r.comment || '' })),
+  }))
+  .sort((a, b) => ORDER.indexOf(a.phase) - ORDER.indexOf(b.phase));
+const RULE_COUNT = ruleSets.reduce((n, p) => n + p.rules.length, 0);
+const ALL_BIPS = [...new Set(ruleSets.flatMap((p) => p.rules.flatMap((r) => r.bip.split(', '))).filter(Boolean))]
+  .sort((a, b) => Number(a) - Number(b));
+
 // the suites, in the order a node checks a block. name + one plain line.
 const SUITES = [
   ['headers', 'Headers', 'The block headers that form the chain: each links to the one before, its proof of work meets the target, its timestamp is sane. Run against real mainnet headers.'],
@@ -268,7 +290,7 @@ function wireExplorer() {
     descEl.textContent = SUITE_DESC[active];
     countEl.textContent = hits.length.toLocaleString() + ' tests' + (hits.length > 200 ? ', showing 200' : '');
     listEl.innerHTML = hits.slice(0, 200).map((t, n) => {
-      const tag = t.expect ? '<span class="exp ' + (t.expect === 'pass' ? 'pass' : 'rej') + '">' + (t.expect === 'pass' ? 'should pass' : 'should be rejected') + '</span>' : '';
+      const tag = '<span class="exp ' + (t.ok ? 'pass' : 'fail') + '">' + (t.ok ? 'PASS' : 'FAIL') + '</span>';
       return '<div class="row" data-n="' + n + '"><span class="v ' + (t.ok ? '' : 'no') + '">' + (t.ok ? '✓' : '✗') + '</span><span class="lab">' + esc(String(t.name).slice(0, 110)) + '</span>' + tag + '</div><div class="detail" id="dt' + n + '"></div>';
     }).join('');
     listEl._hits = hits;
@@ -298,7 +320,7 @@ const html = `<!doctype html>
   a{color:var(--ac2);text-decoration:none}a:hover{text-decoration:underline}
   .wrap{max-width:940px;margin:0 auto;padding:0 1.5rem}
   nav{border-bottom:1px solid var(--bd)}
-  nav .wrap{display:flex;align-items:center;height:56px}
+  nav .wrap{display:flex;align-items:center;gap:1.3rem;height:56px}
   nav .brand{font-weight:700;letter-spacing:-.3px;margin-right:auto}nav .brand b{color:var(--ac)}
   nav a{color:var(--mut);font-size:.9rem;font-weight:500}
   header.hero{padding:3.2rem 0 1.2rem;text-align:center}
@@ -332,7 +354,7 @@ const html = `<!doctype html>
   .v{color:var(--good);font:700 .95rem var(--mono);flex-shrink:0}.v.no{color:var(--bad)}
   .lab{flex:1;font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .exp{font:600 .68rem var(--mono);text-transform:uppercase;border-radius:5px;padding:.13em .5em;flex-shrink:0}
-  .exp.pass{background:#e6f4ea;color:var(--good)}.exp.rej{background:#eef1f4;color:#5b6470}
+  .exp.pass{background:#e6f4ea;color:var(--good)}.exp.fail{background:#fce8e8;color:var(--bad)}
   .detail{display:none}.detail.open{display:block;padding:.4rem 1.4rem 1.1rem 3rem;background:var(--pan)}
   .card{border:1px solid var(--bd);border-radius:10px;overflow:hidden;background:#fff}
   .dl{display:flex;border-top:1px solid var(--bd)}.dl:first-child{border-top:none}
@@ -356,6 +378,7 @@ const html = `<!doctype html>
 <body>
 <nav><div class="wrap">
   <span class="brand">bitcoin<b>·</b>kernel</span>
+  <a href="./spec.html">Specification</a>
   <a href="${ENGINE_REPO}">Source ↗</a>
 </div></nav>
 
@@ -375,7 +398,7 @@ const html = `<!doctype html>
       <div class="tabs">${SUITES.map(suiteTab).join('')}</div>
       <div class="suitehead"><h2 id="suite-title">…</h2><p id="suite-desc"></p></div>
       <div class="searchrow"><input id="search" placeholder="search this suite" autocomplete="off"><span id="suite-count"></span></div>
-      <div class="legend"><b class="g">✓</b> bitcoin-kernel computed the correct result. In the scripts suite, each test is a payment that <b>should pass</b> or <b>should be rejected</b>. Click any test to see what it checks.</div>
+      <div class="legend"><b class="g">PASS</b> means bitcoin-kernel computed the correct result for that vector: it accepted what the network accepts and rejected what the network rejects. Click any test to see the vector and the result.</div>
       <div id="list"></div>
     </div>
   </div>
@@ -405,4 +428,150 @@ const html = `<!doctype html>
 `;
 
 await writeFile(here('index.html'), html);
-console.log('built index.html - holistic test runner across 6 suites');
+
+// ============================ spec.html ============================
+const VECTORS = [
+  ['script_tests.json', "Bitcoin Core's own script test vectors: valid and invalid spends, with the expected verdict for each. About 1,191 are run.", '§4.2, §4.4'],
+  ['genesis-block.json', 'The Bitcoin genesis block: its header, proof of work, merkle root and coinbase.', '§4.1, §4.3'],
+  ['retarget-32256.json', 'The first difficulty retarget in Bitcoin history (block 32,256).', '§4.1'],
+  ['retarget-modern.json', 'A modern difficulty retarget (block 951,552).', '§4.1'],
+  ['header-chain-100k.json', 'Consecutive mainnet headers around height 100,000, validated in sequence.', '§4.1'],
+  ['pruned-window-100000.json', 'A real mainnet block with its transactions, for structural and contextual checks.', '§4.3, §4.4'],
+  ['merkleblock-block100000.json', 'A merkle inclusion proof for a transaction in block 100,000.', '§4.5'],
+  ['merkleblock-first-segwit.json', "A deeper merkle inclusion proof (the first-ever SegWit transaction).", '§4.5'],
+];
+const deDash = (s) => String(s).replace(/\s*[—–]\s*/g, ', ');
+const ruleRows = (rules) => rules.map((r) => `<tr><td class="rid">${esc(r.id)}</td><td>${esc(deDash(r.comment || r.label))}</td><td class="rbip">${r.bip ? 'BIP&nbsp;' + esc(r.bip) : ''}</td><td class="rerr">${esc(r.error)}</td></tr>`).join('');
+const rulesSections = ruleSets.map((p, i) => `<h3 id="rules-${p.phase}">4.${i + 1} ${esc(p.title)}</h3>
+  <p class="blurb">${esc(p.blurb)}</p>
+  <table class="rules"><thead><tr><th>Rule</th><th>Requirement</th><th>BIP</th><th>Error code</th></tr></thead><tbody>${ruleRows(p.rules)}</tbody></table>`).join('\n');
+const bipRefs = ALL_BIPS.map((b) => `<li><a href="https://github.com/bitcoin/bips/blob/master/bip-${String(b).padStart(4, '0')}.mediawiki">BIP ${esc(b)}</a></li>`).join('');
+
+const spec = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bitcoin-kernel specification - Bitcoin's consensus rules, with conformance</title>
+<meta name="description" content="A conformance specification for Bitcoin's consensus rules: normative rules generated from a machine-readable ruleset, a conformance definition, a test suite, and an independent implementation that runs on Node and in the browser.">
+<style>
+  :root{--bg:#fff;--fg:#16181d;--mut:${C.mut};--bd:${C.border};--pan:${C.panel};--ac:${C.accent};--ac2:${C.accent2};--good:${C.good};--bad:${C.bad};--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  *{box-sizing:border-box}html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.7 -apple-system,system-ui,"Segoe UI",sans-serif}
+  a{color:var(--ac2);text-decoration:none}a:hover{text-decoration:underline}
+  nav{border-bottom:1px solid var(--bd);position:sticky;top:0;background:rgba(255,255,255,.9);backdrop-filter:blur(8px)}
+  nav .in{max-width:860px;margin:0 auto;padding:0 1.5rem;display:flex;align-items:center;gap:1.3rem;height:54px}
+  nav .brand{font-weight:700;letter-spacing:-.3px;margin-right:auto}nav .brand b{color:var(--ac)}
+  nav a{color:var(--mut);font-size:.9rem;font-weight:500}
+  main{max-width:860px;margin:0 auto;padding:0 1.5rem 5rem}
+  header.doc{padding:3rem 0 1.4rem;border-bottom:1px solid var(--bd)}
+  .kicker{font:600 .78rem var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ac)}
+  h1{font-size:2.4rem;letter-spacing:-1px;margin:.5rem 0 0;font-weight:800}
+  .tagline{font-size:1.18rem;color:#37414d;margin:.6rem 0 0}
+  .docmeta{font:.82rem var(--mono);color:var(--mut);margin:1rem 0 0}
+  .plain{background:var(--pan);border:1px solid var(--bd);border-radius:12px;padding:1.4rem 1.6rem;margin:2rem 0 0}
+  .plain h2{margin:0 0 .3rem;font-size:1.15rem}
+  .plain>p{margin:.2rem 0 1rem;color:#37414d}
+  .stack{margin:0;display:grid;gap:.7rem}
+  .stack div{display:grid;grid-template-columns:11rem 1fr;gap:1rem}
+  .stack dt{font-weight:700}.stack dd{margin:0;color:var(--mut)}
+  ol.toc{margin:2.2rem 0 0;padding:1rem 1.4rem 1rem 2.6rem;border:1px solid var(--bd);border-radius:10px;color:var(--ac2);font-size:.95rem}
+  ol.toc li{margin:.2rem 0}
+  h2.sec{font-size:1.5rem;letter-spacing:-.4px;margin:2.8rem 0 .6rem;padding-top:.6rem;border-top:1px solid var(--bd)}
+  h3{font-size:1.12rem;margin:1.8rem 0 .3rem}
+  p.blurb{color:var(--mut);margin:.2rem 0 .8rem}
+  .keywords{font-family:var(--mono);font-weight:700;color:var(--fg)}
+  .normbox{border-left:3px solid var(--ac);background:#fff8f0;padding:.8rem 1.1rem;margin:1rem 0;border-radius:0 8px 8px 0}
+  table{width:100%;border-collapse:collapse;margin:.6rem 0 0;font-size:.9rem}
+  th,td{text-align:left;padding:.5rem .7rem;border-top:1px solid var(--bd);vertical-align:top}
+  thead th{border-top:none;border-bottom:2px solid var(--bd);font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--mut)}
+  table.rules .rid{font-family:var(--mono);font-size:.8rem;white-space:nowrap;color:var(--ac)}
+  table.rules .rbip{font-family:var(--mono);font-size:.8rem;color:var(--mut);white-space:nowrap}
+  table.rules .rerr{font-family:var(--mono);font-size:.78rem;color:var(--mut)}
+  .vfile{font-family:var(--mono);font-size:.82rem;white-space:nowrap}
+  code{font-family:var(--mono);font-size:.88em;background:var(--pan);padding:.1em .35em;border-radius:4px}
+  ul.refs{padding-left:1.3rem}ul.refs li{margin:.3rem 0}
+  footer{border-top:1px solid var(--bd);margin-top:3rem;padding:2rem 0;color:var(--mut);font:.82rem/1.6 var(--mono)}
+  @media(max-width:600px){h1{font-size:1.9rem}.stack div{grid-template-columns:1fr;gap:.1rem}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <span class="brand">bitcoin<b>·</b>kernel</span>
+  <a href="./index.html">Live demo</a>
+  <a href="${ENGINE_REPO}">Source ↗</a>
+</div></nav>
+<main>
+  <header class="doc">
+    <div class="kicker">Specification</div>
+    <h1>bitcoin-kernel</h1>
+    <p class="tagline">A conformance specification for Bitcoin's consensus rules.</p>
+    <p class="docmeta">Engine v${VERSION} · ${RULE_COUNT} rules · generated from the source ruleset · living document</p>
+  </header>
+
+  <section class="plain">
+    <h2>In plain terms</h2>
+    <p>This is a standard, in the ordinary sense. It has the same parts a web or internet standard has.</p>
+    <dl class="stack">
+      <div><dt>The rules</dt><dd>What makes a Bitcoin header, block and payment valid. ${RULE_COUNT} of them, listed in §4.</dd></div>
+      <div><dt>The specification</dt><dd>This document. The rules in §4 are generated from the machine-readable ruleset, so the words here and the running code cannot drift apart.</dd></div>
+      <div><dt>The test suite</dt><dd>Real test vectors that exercise the rules, including Bitcoin Core's own script vectors (§5).</dd></div>
+      <div><dt>Conformance</dt><dd>An implementation conforms if it agrees with every vector. Pass them all and you conform (§3).</dd></div>
+      <div><dt>Implementations</dt><dd>bitcoin-kernel, a library that runs these rules on Node and in the browser (§6). Others may follow.</dd></div>
+      <div><dt>The demo</dt><dd>The whole suite, run live in your browser, on the <a href="./index.html">home page</a>.</dd></div>
+    </dl>
+  </section>
+
+  <ol class="toc">
+    <li><a href="#abstract">Abstract</a></li>
+    <li><a href="#status">Status of this document</a></li>
+    <li><a href="#conformance">Conformance</a></li>
+    <li><a href="#rules">Rules</a></li>
+    <li><a href="#vectors">Test vectors</a></li>
+    <li><a href="#implementations">Implementations</a></li>
+    <li><a href="#references">References</a></li>
+  </ol>
+
+  <h2 class="sec" id="abstract">1. Abstract</h2>
+  <p>This document specifies the consensus rules a Bitcoin full node applies when deciding whether to accept a block, together with a conformance test suite. It exists so that independent implementations can be checked against a single, machine-readable definition of the rules. The normative rules in §4 are generated directly from the engine's source-of-truth ruleset (<a href="./engine/schema/validate.jsonld"><code>validate.jsonld</code></a>); the test vectors in §5 are run, in full, by the <a href="./index.html">live demo</a>.</p>
+
+  <h2 class="sec" id="status">2. Status of this document</h2>
+  <p>This is a living document, generated from source on each build. It is an independent community project and is <strong>not affiliated with, nor endorsed by, Bitcoin Core or the Bitcoin project</strong>. It describes the rules as implemented by bitcoin-kernel, an independent implementation, and is offered as a cross-check, not as a replacement for Bitcoin Core. Where this document and the Bitcoin network disagree, the network is correct and this document is in error.</p>
+
+  <h2 class="sec" id="conformance">3. Conformance</h2>
+  <p>The key words <span class="keywords">MUST</span>, <span class="keywords">MUST NOT</span>, <span class="keywords">REQUIRED</span>, <span class="keywords">SHALL</span>, <span class="keywords">SHOULD</span>, and <span class="keywords">MAY</span> in this document are to be interpreted as described in RFC&nbsp;2119.</p>
+  <div class="normbox">
+    <p>An implementation <span class="keywords">conforms</span> to this specification if and only if, for every test vector defined in §5, the verdict it computes (<em>accept</em> or <em>reject</em>) equals that vector's expected verdict.</p>
+  </div>
+  <p>A conforming validator <span class="keywords">MUST</span> implement every rule in §4. It <span class="keywords">MUST</span> reject any header, block, or transaction that a normative rule rejects, and <span class="keywords">MUST NOT</span> reject one that every applicable rule accepts. A conforming validator <span class="keywords">SHOULD</span> demonstrate conformance by running the test suite; the live demo does so in the browser and reports any divergence. Rules marked with a BIP <span class="keywords">MUST</span> be enforced only at and after that BIP's activation height, as the corresponding rule records.</p>
+
+  <h2 class="sec" id="rules">4. Rules</h2>
+  <p>Each rule below is normative. A conforming validator <span class="keywords">MUST</span> enforce it. Rules are grouped by the stage at which a node applies them, and each carries its originating BIP, where one exists, and the error code a node raises when the rule is violated.</p>
+  ${rulesSections}
+
+  <h2 class="sec" id="vectors">5. Test vectors</h2>
+  <p>The test suite is the set of vectors below. They are vendored into this repository under <code>engine/vectors/</code> and are run, in full, by the <a href="./index.html">live demo</a>. An implementation conforms (§3) if it produces each vector's expected verdict.</p>
+  <table><thead><tr><th>Vector set</th><th>Description</th><th>Rules</th></tr></thead><tbody>
+  ${VECTORS.map(([f, d, s]) => `<tr><td class="vfile"><a href="./engine/vectors/${f}">${f}</a></td><td>${esc(d)}</td><td class="vfile">${s}</td></tr>`).join('\n  ')}
+  </tbody></table>
+  <p>The script vectors are <a href="${CORE_TESTS}">Bitcoin Core's own <code>script_tests.json</code></a>, used unmodified. The remaining vectors are real mainnet data, independently verifiable on any block explorer.</p>
+
+  <h2 class="sec" id="implementations">6. Implementations</h2>
+  <p><strong>bitcoin-kernel</strong> is the reference implementation: a JavaScript library, with no runtime dependencies, that implements every rule in §4. The same code runs on a Node server and in a browser tab; the <a href="./index.html">demo</a> runs it client-side. The interpreter and engine are at <a href="./engine/codec/interpreter.js"><code>engine/codec/</code></a> and developed in the open at <a href="${ENGINE_REPO}">${ENGINE_REPO.replace('https://', '')}</a>.</p>
+  <p>An implementation in any language conforms to this specification (§3) if it produces the expected verdict for every vector in §5. Reporting partial conformance (for example, the script rules only) is <span class="keywords">RECOMMENDED</span> where full conformance is not yet reached.</p>
+
+  <h2 class="sec" id="references">7. References</h2>
+  <ul class="refs">
+    <li>S. Bradner, <a href="https://www.rfc-editor.org/rfc/rfc2119">RFC 2119: Key words for use in RFCs to Indicate Requirement Levels</a>.</li>
+    <li><a href="${CORE_TESTS}">Bitcoin Core, <code>src/test/data/script_tests.json</code></a> (the script test vectors).</li>
+    <li>Bitcoin Improvement Proposals referenced by the rules above:<ul class="refs">${bipRefs}</ul></li>
+  </ul>
+</main>
+<footer><div style="max-width:860px;margin:0 auto;padding:0 1.5rem">
+  Generated from <a href="./engine/schema/validate.jsonld">validate.jsonld</a> (engine v${VERSION}). Independent community project, not affiliated with Bitcoin Core. <a href="./index.html">Live demo</a> · <a href="${ENGINE_REPO}">Source</a>
+</div></footer>
+</body>
+</html>
+`;
+await writeFile(here('spec.html'), spec);
+console.log('built index.html + spec.html -', RULE_COUNT, 'rules across', ruleSets.length, 'rulesets');
