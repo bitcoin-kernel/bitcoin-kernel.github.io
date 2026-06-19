@@ -18,38 +18,50 @@
   nav{border-bottom:1px solid var(--bd)}nav .wrap{display:flex;align-items:center;gap:1.3rem;height:56px;max-width:940px}
   nav .brand{font-weight:700;letter-spacing:-.3px;margin-right:auto}nav .brand b{color:var(--ac)}
   nav a{color:var(--mut);font-size:.9rem;font-weight:500}nav a.on{color:var(--fg)}
-  header.hero{padding:2.6rem 0 1rem;text-align:center}
+  header.hero{padding:2.4rem 0 1rem;text-align:center}
   h1{font-size:2.1rem;line-height:1.08;letter-spacing:-1px;margin:0;font-weight:800}
   .sub{font-size:1.05rem;color:#37414d;margin:.8rem auto 0;max-width:34rem}
   .controls{display:flex;flex-wrap:wrap;gap:.6rem;justify-content:center;align-items:center;margin:1.4rem 0 0}
   button{font:inherit;font-weight:600;cursor:pointer;border:1px solid var(--bd);background:#fff;border-radius:10px;padding:.6rem 1.1rem;transition:border-color .12s,background .12s}
   button:hover{border-color:var(--ac)}button.primary{background:var(--ac);color:#fff;border-color:var(--ac)}button.primary:hover{background:#d2760a}
-  button:disabled{opacity:.5;cursor:default}
+  button:disabled{opacity:.55;cursor:default}
   input{font:.95rem var(--mono);border:1px solid var(--bd);border-radius:10px;padding:.6rem .7rem;width:9rem;color:var(--fg)}
   input:focus{outline:none;border-color:var(--ac)}
-  #card{margin:1.6rem 0 0;border:1px solid var(--bd);border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(16,18,29,.06);opacity:0;transition:opacity .25s}
-  #card.show{opacity:1}
-  .chead{padding:1.2rem 1.4rem;border-bottom:1px solid var(--bd);background:var(--pan)}
-  .chead .h{font:800 1.5rem var(--mono);letter-spacing:-1px}
-  .chead .hash{font:.78rem var(--mono);color:var(--mut);word-break:break-all;margin-top:.25rem}
-  .chead .meta{font-size:.85rem;color:var(--mut);margin-top:.4rem}
-  .verdict{padding:.5rem 1.4rem;font-weight:700;border-bottom:1px solid var(--bd)}
-  .verdict.ok{background:#e6f4ea;color:var(--good)}.verdict.no{background:#fce8e8;color:var(--bad)}
-  .checks{padding:.4rem 0}
-  .chk{display:flex;align-items:flex-start;gap:.8rem;padding:.6rem 1.4rem;border-top:1px solid var(--bd)}
-  .chk:first-child{border-top:none}
+
+  /* live progress */
+  #live{margin:1.6rem 0 0;border:1px solid var(--bd);border-radius:14px;background:var(--pan);padding:1.1rem 1.3rem;display:none}
+  #live.on{display:block}
+  #live .step{font:.92rem var(--mono);color:var(--fg);display:flex;align-items:center;gap:.6rem}
+  #live .step .spin{display:inline-block;width:.8em;height:.8em;border:2px solid var(--bd);border-top-color:var(--ac);border-radius:50%;animation:sp .7s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+  #live .bar{height:.55rem;background:var(--bd);border-radius:99px;overflow:hidden;margin:.7rem 0 .2rem;opacity:0;transition:opacity .2s}
+  #live .bar.on{opacity:1}#live .bar i{display:block;height:100%;width:0;background:var(--ac);border-radius:99px;transition:width .1s linear}
+  #live .meta{font:.78rem var(--mono);color:var(--mut)}
+  #err{color:var(--bad);text-align:center;margin:1.2rem 0 0;font-size:.95rem}
+
+  /* result card */
+  #card{margin:1.6rem 0 0;border:1px solid var(--bd);border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(16,18,29,.06);display:none}
+  #card.show{display:block;animation:rise .35s ease both}@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  .hero-time{padding:1.6rem 1.4rem;text-align:center;background:linear-gradient(180deg,#f1faf3,#fff);border-bottom:1px solid var(--bd)}
+  .hero-time .big{font:800 3rem var(--mono);letter-spacing:-2px;color:var(--good);line-height:1}
+  .hero-time .lab{color:#37414d;margin-top:.5rem;font-size:.98rem}
+  .hero-time.bad{background:linear-gradient(180deg,#fdf0f0,#fff)}.hero-time.bad .big{color:var(--bad)}
+  .chead{padding:1rem 1.4rem;border-bottom:1px solid var(--bd)}
+  .chead .h{font:800 1.3rem var(--mono);letter-spacing:-1px}
+  .chead .hash{font:.76rem var(--mono);color:var(--mut);word-break:break-all;margin-top:.2rem}
+  .chead .meta{font-size:.83rem;color:var(--mut);margin-top:.35rem}
+  .checks{padding:.3rem 0}
+  .chk{display:flex;align-items:flex-start;gap:.8rem;padding:.6rem 1.4rem;border-top:1px solid var(--bd);opacity:0;transform:translateX(-6px);animation:slidein .3s ease forwards}
+  @keyframes slidein{to{opacity:1;transform:none}}
   .chk .ic{font:800 1rem var(--mono);flex-shrink:0;width:1.1rem}.chk .ic.g{color:var(--good)}.chk .ic.b{color:var(--bad)}.chk .ic.s{color:var(--mut)}
-  .chk .t b{font-weight:700}.chk .t .d{font:.8rem var(--mono);color:var(--mut);word-break:break-all}
+  .chk .t b{font-weight:700}.chk .t .d{font:.79rem var(--mono);color:var(--mut);word-break:break-all}
+  .chk .ms{margin-left:auto;font:.78rem var(--mono);color:var(--mut);white-space:nowrap;align-self:center}
   .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(7rem,1fr));gap:.1rem;background:var(--bd);border-top:1px solid var(--bd)}
-  .stat{background:#fff;padding:.8rem 1rem}.stat .n{font:800 1.2rem var(--mono);letter-spacing:-.5px}.stat .l{font-size:.75rem;color:var(--mut);text-transform:uppercase;letter-spacing:.03em}
-  .types{padding:1rem 1.4rem;border-top:1px solid var(--bd)}.types .bar{display:flex;height:.7rem;border-radius:99px;overflow:hidden;margin:.5rem 0}.types .bar i{display:block}
-  .types .key{font:.78rem var(--mono);color:var(--mut);display:flex;flex-wrap:wrap;gap:.7rem}.types .key b{font-weight:400}.types .key i{display:inline-block;width:.6rem;height:.6rem;border-radius:2px;margin-right:.3rem;vertical-align:-1px}
+  .stat{background:#fff;padding:.8rem 1rem}.stat .n{font:800 1.2rem var(--mono);letter-spacing:-.5px}.stat .l{font-size:.74rem;color:var(--mut);text-transform:uppercase;letter-spacing:.03em}
+  .types{padding:1rem 1.4rem;border-top:1px solid var(--bd)}.types .bar{display:flex;height:.7rem;border-radius:99px;overflow:hidden;margin:.5rem 0}.types .bar i{display:block;transition:width .5s ease}
+  .types .key{font:.78rem var(--mono);color:var(--mut);display:flex;flex-wrap:wrap;gap:.7rem}.types .key span i{display:inline-block;width:.6rem;height:.6rem;border-radius:2px;margin-right:.3rem;vertical-align:-1px}
   .bench{padding:.9rem 1.4rem;border-top:1px solid var(--bd);font:.82rem var(--mono);color:var(--mut)}.bench b{color:var(--fg)}
   .note{margin:1.1rem 0 0;padding:.7rem 1rem;background:var(--pan);border:1px solid var(--bd);border-radius:10px;font-size:.85rem;color:var(--mut);line-height:1.5}.note b{color:var(--fg)}
-  #status{text-align:center;color:var(--mut);margin:1.2rem 0 0;min-height:1.4rem;font-size:.95rem}#status.err{color:var(--bad)}
-  .spin{display:inline-block;width:.8em;height:.8em;border:2px solid var(--bd);border-top-color:var(--ac);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-1px}@keyframes sp{to{transform:rotate(360deg)}}
   footer{margin:3rem 0 2rem;text-align:center;font-size:.85rem;color:var(--mut)}
-  .tc-g{color:var(--good)}.tc-b{color:var(--bad)}
 </style>
 </head>
 <body>
@@ -62,21 +74,26 @@
 
 <header class="hero"><div class="wrap">
   <h1>Verify a Bitcoin block.</h1>
-  <p class="sub">Pick a random block, or type a height. The block is fetched live and its proof of work, merkle root and structure are checked right here in your browser. No server. The validator is the page.</p>
+  <p class="sub">Pick a random block, or type a height. It is fetched live and its proof of work, merkle root and structure are checked right here in your browser. No server. The validator is the page.</p>
   <div class="controls">
     <button id="rand" class="primary">🎲 Random block</button>
     <input id="height" type="number" min="0" placeholder="block height" inputmode="numeric">
     <button id="go">Verify</button>
   </div>
-  <p id="status"></p>
 </div></header>
 
 <div class="wrap">
+  <div id="live">
+    <div class="step"><span class="spin"></span><span id="step-t">starting</span></div>
+    <div class="bar" id="bar"><i id="barfill"></i></div>
+    <div class="meta" id="live-meta"></div>
+  </div>
+  <p id="err"></p>
   <div id="card"></div>
-  <p class="note"><b>Phase 1:</b> this checks proof of work, the merkle root, the witness commitment and block structure, all of which live inside the block itself. Script and signature validation needs the spending history (the prevouts), which is phase 2. So a pass here means the block is structurally sound, not that every signature was checked.</p>
+  <p class="note"><b>Phase 1:</b> proof of work, merkle root, witness commitment and block structure all live inside the block itself, so they verify with no extra data. Script execution and signature checks need the spending history (the prevouts), which is phase 2. A pass here means structurally sound, not that every signature was checked.</p>
 </div>
 
-<footer>An independent JavaScript implementation. Block data from <span id="prov">mempool.guide</span>. <a href="./index.html">bitcoin-kernel</a></footer>
+<footer>An independent JavaScript implementation. Block data from <span id="prov">mempool.space</span>. <a href="./index.html">bitcoin-kernel</a></footer>
 
 <script type="module">
 import { Codec } from './engine/codec/codec.js';
@@ -92,112 +109,151 @@ const codec = new Codec(core, proof);
 const be = BlockEngine.fromSchemas(codec, chain, validate, script, 'btc:mainnet');
 const se = ScriptEngine.fromSchemas(script, chain);
 
-const PROVIDERS = ['https://mempool.guide', 'https://mempool.space'];
+const PROVIDERS = ['https://mempool.space', 'https://blockstream.info'];
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 const fmt = (n) => Number(n).toLocaleString();
-const TCOL = { p2pk: '#57606a', p2pkh: '#0969da', p2ms: '#6e7781', multisig: '#6e7781', p2sh: '#8250df', p2wpkh: '#1a7f37', p2wsh: '#bf8700', p2tr: '#e8830c', 'p2tr-keypath': '#e8830c', nulldata: '#a0a0a0', unknown: '#cf222e' };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const TCOL = { p2pk: '#57606a', p2pkh: '#0969da', p2sh: '#8250df', p2ms: '#6e7781', multisig: '#6e7781', p2wpkh: '#1a7f37', p2wsh: '#bf8700', p2tr: '#e8830c', 'p2tr-keypath': '#e8830c', nulldata: '#a0a0a0', unknown: '#cf222e' };
 
-let TIP = null, BASE = PROVIDERS[0];
-async function api(path) {
+const step = (t) => { $('step-t').textContent = t; };
+const setBar = (frac) => { $('bar').classList.add('on'); $('barfill').style.width = (Math.max(0, Math.min(1, frac)) * 100).toFixed(1) + '%'; };
+
+let TIP = null;
+async function api(path, { stream } = {}) {
+  let lastErr;
   for (const base of PROVIDERS) {
     try {
       const r = await fetch(base + path);
-      if (!r.ok) throw new Error(r.status);
-      BASE = base; $('prov').textContent = base.replace('https://', '');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      $('prov').textContent = base.replace('https://', '');
       return r;
-    } catch (e) { /* try next provider */ }
+    } catch (e) { lastErr = e; }
   }
-  throw new Error('all block explorers unreachable (CORS or offline)');
+  throw new Error('block explorers unreachable (' + (lastErr ? lastErr.message : 'CORS/offline') + ')');
+}
+
+// count a number up from 0 -> value over ~600ms
+function countUp(el, value) {
+  const t0 = performance.now(), dur = 600;
+  function tick(t) { const k = Math.min(1, (t - t0) / dur); el.textContent = fmt(Math.round(value * (1 - Math.pow(1 - k, 3)))); if (k < 1) requestAnimationFrame(tick); }
+  requestAnimationFrame(tick);
 }
 
 async function verify(height) {
   $('rand').disabled = $('go').disabled = true;
-  $('card').classList.remove('show');
-  $('status').className = ''; $('status').innerHTML = `<span class="spin"></span> fetching block ${fmt(height)}`;
+  $('card').classList.remove('show'); $('card').style.display = 'none';
+  $('err').textContent = '';
+  $('live').classList.add('on'); $('bar').classList.remove('on'); $('barfill').style.width = '0'; $('live-meta').textContent = '';
   try {
     const tF = performance.now();
+    step(`looking up block ${fmt(height)}`);
     const hash = (await (await api(`/api/block-height/${height}`)).text()).trim();
-    const buf = await (await api(`/api/block/${hash}/raw`)).arrayBuffer();
+
+    step('downloading block');
+    const resp = await api(`/api/block/${hash}/raw`);
+    const total = +resp.headers.get('content-length') || 0;
+    const reader = resp.body.getReader();
+    const chunks = []; let received = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value); received += value.length;
+      if (total) setBar(received / total);
+      $('live-meta').textContent = `${(received / 1024).toFixed(0)} KB${total ? ' / ' + (total / 1024).toFixed(0) + ' KB' : ''}`;
+    }
+    setBar(1);
+    const bytes = new Uint8Array(received); { let o = 0; for (const c of chunks) { bytes.set(c, o); o += c.length; } }
     const fetchMs = performance.now() - tF;
 
-    const bytes = new Uint8Array(buf);
-    let hex = ''; for (let i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, '0');
-
+    $('bar').classList.remove('on');
+    step('decoding transactions');
+    await sleep(40);
+    let hex = ''; const lut = []; for (let i = 0; i < 256; i++) lut[i] = i.toString(16).padStart(2, '0'); for (let i = 0; i < bytes.length; i++) hex += lut[bytes[i]];
     const tD = performance.now();
     const block = codec.decode('Block', hex);
     const decodeMs = performance.now() - tD;
 
+    step(`hashing ${fmt(block.transactions.length)} transactions`);
+    await sleep(40);
     const tV = performance.now();
     const txids = block.transactions.map((t) => codec.txid(t));
-    const powOk = codec.checkProofOfWork(block.header);
+    const tMerkle0 = performance.now();
     const merkleGot = codec.merkleRoot(txids);
+    const merkleMs = performance.now() - tMerkle0;
+    const powOk = codec.checkProofOfWork(block.header);
     const merkleOk = merkleGot === block.header.merkleRoot;
     const struct = be.validateBlockStructure(block).results;
     const structFails = struct.filter((r) => r.ok === false);
     const verifyMs = performance.now() - tV;
 
-    let ins = 0, outs = 0, sigs = 0; const types = {};
-    for (const t of block.transactions) {
-      ins += t.inputs.length; outs += t.outputs.length;
-      for (const w of (t.witness || [])) sigs += (w || []).length ? 1 : 0;
-      for (const o of t.outputs) { const c = se.classify(o.scriptPubKey).type || 'unknown'; types[c] = (types[c] || 0) + 1; }
-    }
+    let ins = 0, outs = 0; const types = {};
+    for (const t of block.transactions) { ins += t.inputs.length; outs += t.outputs.length; for (const o of t.outputs) { const c = se.classify(o.scriptPubKey).type || 'unknown'; types[c] = (types[c] || 0) + 1; } }
     const target = codec.expandCompact(block.header.bits).toString(16).padStart(64, '0');
-    const allOk = powOk && merkleOk && structFails.length === 0;
-    render({ height, hash, block, powOk, merkleGot, merkleOk, struct, structFails, ins, outs, types, target, allOk,
-      bytes: bytes.length, weight: be.blockWeight(block), fetchMs, decodeMs, verifyMs });
-    $('status').innerHTML = '';
+
+    $('live').classList.remove('on');
+    render({ height, hash, block, powOk, merkleGot, merkleOk, struct, structFails, ins, outs, types, target,
+      allOk: powOk && merkleOk && structFails.length === 0, bytes: received, weight: be.blockWeight(block),
+      fetchMs, decodeMs, verifyMs, merkleMs });
     $('height').value = height;
   } catch (e) {
-    $('status').className = 'err'; $('status').textContent = 'Error: ' + e.message;
+    $('live').classList.remove('on');
+    $('err').textContent = 'Error: ' + e.message;
   } finally {
     $('rand').disabled = $('go').disabled = false;
   }
 }
 
-function chk(ok, title, detail, skipped) {
+function chk(ok, title, detail, ms, skipped, delay) {
   const ic = skipped ? '<span class="ic s">○</span>' : ok ? '<span class="ic g">✓</span>' : '<span class="ic b">✗</span>';
-  return `<div class="chk">${ic}<div class="t"><b>${esc(title)}</b>${detail ? `<div class="d">${detail}</div>` : ''}</div></div>`;
+  return `<div class="chk" style="animation-delay:${delay}ms"><span class="ic-w">${ic}</span><div class="t"><b>${esc(title)}</b>${detail ? `<div class="d">${detail}</div>` : ''}</div>${ms != null ? `<span class="ms">${ms}</span>` : ''}</div>`;
 }
 
 function render(r) {
   const d = new Date(r.block.header.time * 1000).toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
   const tbar = Object.entries(r.types).sort((a, b) => b[1] - a[1]);
   const totalOut = r.outs || 1;
-  const bar = tbar.map(([k, n]) => `<i style="background:${TCOL[k] || '#999'};width:${(n / totalOut * 100).toFixed(1)}%"></i>`).join('');
-  const key = tbar.map(([k, n]) => `<b><i style="background:${TCOL[k] || '#999'}"></i>${esc(k)} ${fmt(n)}</b>`).join('');
+  const bar = tbar.map(([k, n]) => `<i style="background:${TCOL[k] || '#999'};width:0" data-w="${(n / totalOut * 100).toFixed(1)}"></i>`).join('');
+  const key = tbar.map(([k, n]) => `<span><i style="background:${TCOL[k] || '#999'}"></i>${esc(k)} ${fmt(n)}</span>`).join('');
   const structOk = r.structFails.length === 0;
+  const nTx = r.block.transactions.length;
   $('card').innerHTML = `
+    <div class="hero-time ${r.allOk ? '' : 'bad'}">
+      <div class="big">${r.verifyMs.toFixed(0)}<span style="font-size:1.2rem;letter-spacing:0"> ms</span></div>
+      <div class="lab">${r.allOk ? '✓' : '✗'} proof of work, merkle root and structure of <b>${fmt(nTx)}</b> transactions, verified in your browser</div>
+    </div>
     <div class="chead">
       <div class="h">Block ${fmt(r.height)}</div>
       <div class="hash">${esc(r.hash)}</div>
       <div class="meta">${d} &middot; ${(r.bytes / 1024).toFixed(0)} KB &middot; weight ${fmt(r.weight)}</div>
     </div>
-    <div class="verdict ${r.allOk ? 'ok' : 'no'}">${r.allOk ? '✓ Structurally valid' : '✗ A structural check failed'}</div>
     <div class="checks">
-      ${chk(r.powOk, 'Proof of work', `hash ${r.hash.slice(0, 20)}… &le; target ${r.target.replace(/^0+/, '0…').slice(0, 20)}…`)}
-      ${chk(r.merkleOk, `Merkle root (${fmt(r.block.transactions.length)} transactions)`, `${r.merkleGot.slice(0, 32)}…`)}
-      ${chk(structOk, 'Block structure & limits', structOk ? 'coinbase, weight, sigops, witness commitment, no duplicates' : r.structFails.map((f) => esc(f.label)).join(', '))}
-      ${chk(false, 'Scripts & signatures', `${fmt(r.ins)} inputs not executed — needs prevouts (phase 2)`, true)}
+      ${chk(r.powOk, 'Proof of work', `hash ${r.hash.slice(0, 18)}… &le; target ${r.target.replace(/^0+/, '0…').slice(0, 18)}…`, null, false, 0)}
+      ${chk(r.merkleOk, `Merkle root (${fmt(nTx)} transactions)`, `${r.merkleGot.slice(0, 36)}…`, r.merkleMs.toFixed(1) + ' ms', false, 90)}
+      ${chk(structOk, 'Block structure & limits', structOk ? 'coinbase, weight, sigops, witness commitment, no duplicates' : r.structFails.map((f) => esc(f.label)).join(', '), null, false, 180)}
     </div>
     <div class="stats">
-      <div class="stat"><div class="n">${fmt(r.block.transactions.length)}</div><div class="l">Transactions</div></div>
-      <div class="stat"><div class="n">${fmt(r.ins)}</div><div class="l">Inputs</div></div>
-      <div class="stat"><div class="n">${fmt(r.outs)}</div><div class="l">Outputs</div></div>
-      <div class="stat"><div class="n">${(r.weight / 4000).toFixed(0)}<span style="font-size:.7rem;color:var(--mut)">/1000 vB</span></div><div class="l">Virtual size</div></div>
+      <div class="stat"><div class="n" data-c="${nTx}">0</div><div class="l">Transactions</div></div>
+      <div class="stat"><div class="n" data-c="${r.ins}">0</div><div class="l">Inputs</div></div>
+      <div class="stat"><div class="n" data-c="${r.outs}">0</div><div class="l">Outputs</div></div>
+      <div class="stat"><div class="n">${(r.weight / 4000).toFixed(0)}<span style="font-size:.7rem;color:var(--mut)">k vB</span></div><div class="l">Virtual size</div></div>
     </div>
     ${tbar.length ? `<div class="types"><div style="font-size:.85rem;color:var(--mut)">Output script types</div><div class="bar">${bar}</div><div class="key">${key}</div></div>` : ''}
-    <div class="bench">fetched <b>${r.fetchMs.toFixed(0)} ms</b> &middot; decoded <b>${r.decodeMs.toFixed(0)} ms</b> &middot; proof of work + merkle + structure verified in <b>${r.verifyMs.toFixed(0)} ms</b>, in your browser</div>`;
-  $('card').classList.add('show');
+    <div class="bench">fetched <b>${r.fetchMs.toFixed(0)} ms</b> &middot; decoded <b>${r.decodeMs.toFixed(0)} ms</b> &middot; verified <b>${r.verifyMs.toFixed(0)} ms</b> &middot; ${nTx ? Math.round(nTx / (r.verifyMs / 1000)) : 0} tx/s</div>`;
+  $('card').style.display = 'block'; $('card').classList.add('show');
+  // animate: count up the stats + fill the type bar
+  $('card').querySelectorAll('.stat .n[data-c]').forEach((el) => countUp(el, +el.dataset.c));
+  requestAnimationFrame(() => $('card').querySelectorAll('.types .bar i').forEach((i) => { i.style.width = i.dataset.w + '%'; }));
 }
 
 async function randomBlock() {
-  $('status').innerHTML = '<span class="spin"></span> picking a block';
+  $('rand').disabled = $('go').disabled = true;
+  $('err').textContent = ''; $('live').classList.add('on'); $('bar').classList.remove('on'); $('live-meta').textContent = '';
+  step('picking a random block');
   try {
     if (TIP == null) TIP = Number((await (await api('/api/blocks/tip/height')).text()).trim());
     verify(Math.floor(Math.random() * (TIP + 1)));
-  } catch (e) { $('status').className = 'err'; $('status').textContent = 'Error: ' + e.message; }
+  } catch (e) { $('live').classList.remove('on'); $('err').textContent = 'Error: ' + e.message; $('rand').disabled = $('go').disabled = false; }
 }
 
 $('rand').onclick = randomBlock;
