@@ -41,10 +41,15 @@
   /* result card */
   #card{margin:1.6rem 0 0;border:1px solid var(--bd);border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(16,18,29,.06);display:none}
   #card.show{display:block;animation:rise .35s ease both}@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-  .hero-time{padding:1.6rem 1.4rem;text-align:center;background:linear-gradient(180deg,#f1faf3,#fff);border-bottom:1px solid var(--bd)}
-  .hero-time .big{font:800 3rem var(--mono);letter-spacing:-2px;color:var(--good);line-height:1}
-  .hero-time .lab{color:#37414d;margin-top:.5rem;font-size:.98rem}
-  .hero-time.bad{background:linear-gradient(180deg,#fdf0f0,#fff)}.hero-time.bad .big{color:var(--bad)}
+  .vhero{padding:1.7rem 1.4rem 1.5rem;text-align:center;background:linear-gradient(180deg,#e9f7ee,#fff);border-bottom:1px solid var(--bd)}
+  .vhero.bad{background:linear-gradient(180deg,#fdecec,#fff)}
+  .vhero .vc{font:800 2.8rem var(--mono);letter-spacing:-1.5px;color:var(--good);line-height:1}.vhero.bad .vc{color:var(--bad)}
+  .vhero .sl{font-size:.95rem;color:#37414d;margin-top:.35rem}
+  .vhero .vbar{height:.6rem;background:#d3ead9;border-radius:99px;overflow:hidden;margin:.9rem auto .5rem;max-width:22rem}
+  .vhero.bad .vbar{background:#f1d5d5}
+  .vhero .vbar i{display:block;height:100%;width:0;background:var(--good);border-radius:99px;transition:width .9s cubic-bezier(.2,.85,.25,1)}.vhero.bad .vbar i{background:var(--bad)}
+  .vhero .pct{font:700 .92rem var(--mono);color:var(--good)}.vhero.bad .pct{color:var(--bad)}.vhero .pct .t{color:var(--mut);font-weight:400}
+  .seclab{padding:.9rem 1.4rem .1rem;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);border-top:1px solid var(--bd)}
   .chead{padding:1rem 1.4rem;border-bottom:1px solid var(--bd)}
   .chead .h{font:800 1.3rem var(--mono);letter-spacing:-1px}
   .chead .hash{font:.76rem var(--mono);color:var(--mut);word-break:break-all;margin-top:.2rem}
@@ -155,6 +160,7 @@ async function verify(height) {
     const total = +resp.headers.get('content-length') || 0;
     const reader = resp.body.getReader();
     const chunks = []; let received = 0;
+    const tDl = performance.now();
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -162,6 +168,7 @@ async function verify(height) {
       if (total) setBar(received / total);
       $('live-meta').textContent = `${(received / 1024).toFixed(0)} KB${total ? ' / ' + (total / 1024).toFixed(0) + ' KB' : ''}`;
     }
+    const dlMs = performance.now() - tDl;
     setBar(1);
     const bytes = new Uint8Array(received); { let o = 0; for (const c of chunks) { bytes.set(c, o); o += c.length; } }
     const fetchMs = performance.now() - tF;
@@ -194,7 +201,7 @@ async function verify(height) {
     $('live').classList.remove('on');
     render({ height, hash, block, powOk, merkleGot, merkleOk, struct, structFails, ins, outs, types, target,
       allOk: powOk && merkleOk && structFails.length === 0, bytes: received, weight: be.blockWeight(block),
-      fetchMs, decodeMs, verifyMs, merkleMs });
+      fetchMs, decodeMs, verifyMs, merkleMs, dlMs });
     $('height').value = height;
   } catch (e) {
     $('live').classList.remove('on');
@@ -217,10 +224,15 @@ function render(r) {
   const key = tbar.map(([k, n]) => `<span><i style="background:${TCOL[k] || '#999'}"></i>${esc(k)} ${fmt(n)}</span>`).join('');
   const structOk = r.structFails.length === 0;
   const nTx = r.block.transactions.length;
+  const mbps = r.dlMs > 0 ? (r.bytes / 1000 / r.dlMs).toFixed(1) : '0';
+  const txps = r.verifyMs > 0 ? Math.round(nTx / (r.verifyMs / 1000)) : 0;
+  const u = (s) => `<span style="font-size:.7rem;color:var(--mut);font-weight:400"> ${s}</span>`;
   $('card').innerHTML = `
-    <div class="hero-time ${r.allOk ? '' : 'bad'}">
-      <div class="big">${r.verifyMs.toFixed(0)}<span style="font-size:1.2rem;letter-spacing:0"> ms</span></div>
-      <div class="lab">${r.allOk ? '✓' : '✗'} proof of work, merkle root and structure of <b>${fmt(nTx)}</b> transactions, verified in your browser</div>
+    <div class="vhero ${r.allOk ? '' : 'bad'}">
+      <div class="vc"><span class="cu" data-c="${nTx}">0</span> <span style="font-size:1.5rem;letter-spacing:-1px">/ ${fmt(nTx)}</span></div>
+      <div class="sl">${r.allOk ? 'transactions verified' : 'a structural check failed'}</div>
+      <div class="vbar"><i id="vfill"></i></div>
+      <div class="pct">${r.allOk ? '100%' : 'failed'}<span class="t"> &middot; proof of work, merkle &amp; structure in ${r.verifyMs.toFixed(0)} ms, in your browser</span></div>
     </div>
     <div class="chead">
       <div class="h">Block ${fmt(r.height)}</div>
@@ -232,18 +244,28 @@ function render(r) {
       ${chk(r.merkleOk, `Merkle root (${fmt(nTx)} transactions)`, `${r.merkleGot.slice(0, 36)}…`, r.merkleMs.toFixed(1) + ' ms', false, 90)}
       ${chk(structOk, 'Block structure & limits', structOk ? 'coinbase, weight, sigops, witness commitment, no duplicates' : r.structFails.map((f) => esc(f.label)).join(', '), null, false, 180)}
     </div>
+    <div class="seclab">The block</div>
     <div class="stats">
-      <div class="stat"><div class="n" data-c="${nTx}">0</div><div class="l">Transactions</div></div>
-      <div class="stat"><div class="n" data-c="${r.ins}">0</div><div class="l">Inputs</div></div>
-      <div class="stat"><div class="n" data-c="${r.outs}">0</div><div class="l">Outputs</div></div>
-      <div class="stat"><div class="n">${(r.weight / 4000).toFixed(0)}<span style="font-size:.7rem;color:var(--mut)">k vB</span></div><div class="l">Virtual size</div></div>
+      <div class="stat"><div class="n"><span class="cu" data-c="${nTx}">0</span></div><div class="l">Transactions</div></div>
+      <div class="stat"><div class="n"><span class="cu" data-c="${r.ins}">0</span></div><div class="l">Inputs</div></div>
+      <div class="stat"><div class="n"><span class="cu" data-c="${r.outs}">0</span></div><div class="l">Outputs</div></div>
+      <div class="stat"><div class="n">${(r.weight / 4000).toFixed(0)}${u('k vB')}</div><div class="l">Virtual size</div></div>
     </div>
-    ${tbar.length ? `<div class="types"><div style="font-size:.85rem;color:var(--mut)">Output script types</div><div class="bar">${bar}</div><div class="key">${key}</div></div>` : ''}
-    <div class="bench">fetched <b>${r.fetchMs.toFixed(0)} ms</b> &middot; decoded <b>${r.decodeMs.toFixed(0)} ms</b> &middot; verified <b>${r.verifyMs.toFixed(0)} ms</b> &middot; ${nTx ? Math.round(nTx / (r.verifyMs / 1000)) : 0} tx/s</div>`;
+    <div class="seclab">Performance, in your browser</div>
+    <div class="stats">
+      <div class="stat"><div class="n"><span class="cu" data-c="${Math.round(r.fetchMs)}">0</span>${u('ms')}</div><div class="l">Fetch</div></div>
+      <div class="stat"><div class="n">${mbps}${u('MB/s')}</div><div class="l">Download</div></div>
+      <div class="stat"><div class="n"><span class="cu" data-c="${Math.round(r.decodeMs)}">0</span>${u('ms')}</div><div class="l">Decode</div></div>
+      <div class="stat"><div class="n"><span class="cu" data-c="${Math.round(r.verifyMs)}">0</span>${u('ms')}</div><div class="l">Verify</div></div>
+      <div class="stat"><div class="n"><span class="cu" data-c="${txps}">0</span>${u('tx/s')}</div><div class="l">Throughput</div></div>
+    </div>
+    ${tbar.length ? `<div class="types"><div style="font-size:.85rem;color:var(--mut)">Output script types</div><div class="bar">${bar}</div><div class="key">${key}</div></div>` : ''}`;
   $('card').style.display = 'block'; $('card').classList.add('show');
-  // animate: count up the stats + fill the type bar
-  $('card').querySelectorAll('.stat .n[data-c]').forEach((el) => countUp(el, +el.dataset.c));
-  requestAnimationFrame(() => $('card').querySelectorAll('.types .bar i').forEach((i) => { i.style.width = i.dataset.w + '%'; }));
+  $('card').querySelectorAll('.cu[data-c]').forEach((el) => countUp(el, +el.dataset.c));
+  requestAnimationFrame(() => {
+    const vf = document.getElementById('vfill'); if (vf) vf.style.width = (r.allOk ? 100 : 8) + '%';
+    $('card').querySelectorAll('.types .bar i').forEach((i) => { i.style.width = i.dataset.w + '%'; });
+  });
 }
 
 async function randomBlock() {
