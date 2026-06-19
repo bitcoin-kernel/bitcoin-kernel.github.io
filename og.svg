@@ -35,7 +35,7 @@
 
   <!-- stats row -->
   <g>
-    <text x="80" y="540" font-family="DejaVu Sans Mono, monospace" font-size="54" font-weight="700" fill="#1a7f37">1,191</text>
+    <text x="80" y="540" font-family="DejaVu Sans Mono, monospace" font-size="54" font-weight="700" fill="#1a7f37">1,233</text>
     <text x="80" y="572" font-size="15" font-weight="700" fill="#5b6470" letter-spacing="2">PASSING</text>
 
     <text x="312" y="540" font-family="DejaVu Sans Mono, monospace" font-size="54" font-weight="700" fill="#16181d">0</text>
