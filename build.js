@@ -445,6 +445,7 @@ const html = `<!doctype html>
 <body>
 <nav><div class="wrap">
   <span class="brand">bitcoin<b>·</b>kernel</span>
+  <a href="./random.html">Verify a block</a>
   <a href="./spec.html">Specification</a>
   <a href="${ENGINE_REPO}">Source ↗</a>
 </div></nav>

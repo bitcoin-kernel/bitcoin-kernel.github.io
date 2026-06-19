@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bitcoin-kernel - verify a block live in your browser</title>
+<meta name="description" content="Fetch any Bitcoin block by height and verify its proof of work, merkle root and structure live in your browser. No server, no bundle, the engine runs on your device.">
+<meta property="og:title" content="bitcoin-kernel - verify a block">
+<meta property="og:description" content="Fetch a random Bitcoin block and verify its proof of work, merkle root and structure, live in your browser.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://bitcoin-kernel.com/random.html">
+<meta property="og:image" content="https://bitcoin-kernel.com/og.png?v=4">
+<style>
+  :root{--bg:#fff;--fg:#16181d;--mut:#5b6470;--bd:#e6e8eb;--pan:#fafbfc;--ac:#e8830c;--ac2:#0969da;--good:#1a7f37;--bad:#cf222e;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:var(--ac2);text-decoration:none}a:hover{text-decoration:underline}
+  .wrap{max-width:760px;margin:0 auto;padding:0 1.5rem}
+  nav{border-bottom:1px solid var(--bd)}nav .wrap{display:flex;align-items:center;gap:1.3rem;height:56px;max-width:940px}
+  nav .brand{font-weight:700;letter-spacing:-.3px;margin-right:auto}nav .brand b{color:var(--ac)}
+  nav a{color:var(--mut);font-size:.9rem;font-weight:500}nav a.on{color:var(--fg)}
+  header.hero{padding:2.6rem 0 1rem;text-align:center}
+  h1{font-size:2.1rem;line-height:1.08;letter-spacing:-1px;margin:0;font-weight:800}
+  .sub{font-size:1.05rem;color:#37414d;margin:.8rem auto 0;max-width:34rem}
+  .controls{display:flex;flex-wrap:wrap;gap:.6rem;justify-content:center;align-items:center;margin:1.4rem 0 0}
+  button{font:inherit;font-weight:600;cursor:pointer;border:1px solid var(--bd);background:#fff;border-radius:10px;padding:.6rem 1.1rem;transition:border-color .12s,background .12s}
+  button:hover{border-color:var(--ac)}button.primary{background:var(--ac);color:#fff;border-color:var(--ac)}button.primary:hover{background:#d2760a}
+  button:disabled{opacity:.5;cursor:default}
+  input{font:.95rem var(--mono);border:1px solid var(--bd);border-radius:10px;padding:.6rem .7rem;width:9rem;color:var(--fg)}
+  input:focus{outline:none;border-color:var(--ac)}
+  #card{margin:1.6rem 0 0;border:1px solid var(--bd);border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(16,18,29,.06);opacity:0;transition:opacity .25s}
+  #card.show{opacity:1}
+  .chead{padding:1.2rem 1.4rem;border-bottom:1px solid var(--bd);background:var(--pan)}
+  .chead .h{font:800 1.5rem var(--mono);letter-spacing:-1px}
+  .chead .hash{font:.78rem var(--mono);color:var(--mut);word-break:break-all;margin-top:.25rem}
+  .chead .meta{font-size:.85rem;color:var(--mut);margin-top:.4rem}
+  .verdict{padding:.5rem 1.4rem;font-weight:700;border-bottom:1px solid var(--bd)}
+  .verdict.ok{background:#e6f4ea;color:var(--good)}.verdict.no{background:#fce8e8;color:var(--bad)}
+  .checks{padding:.4rem 0}
+  .chk{display:flex;align-items:flex-start;gap:.8rem;padding:.6rem 1.4rem;border-top:1px solid var(--bd)}
+  .chk:first-child{border-top:none}
+  .chk .ic{font:800 1rem var(--mono);flex-shrink:0;width:1.1rem}.chk .ic.g{color:var(--good)}.chk .ic.b{color:var(--bad)}.chk .ic.s{color:var(--mut)}
+  .chk .t b{font-weight:700}.chk .t .d{font:.8rem var(--mono);color:var(--mut);word-break:break-all}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(7rem,1fr));gap:.1rem;background:var(--bd);border-top:1px solid var(--bd)}
+  .stat{background:#fff;padding:.8rem 1rem}.stat .n{font:800 1.2rem var(--mono);letter-spacing:-.5px}.stat .l{font-size:.75rem;color:var(--mut);text-transform:uppercase;letter-spacing:.03em}
+  .types{padding:1rem 1.4rem;border-top:1px solid var(--bd)}.types .bar{display:flex;height:.7rem;border-radius:99px;overflow:hidden;margin:.5rem 0}.types .bar i{display:block}
+  .types .key{font:.78rem var(--mono);color:var(--mut);display:flex;flex-wrap:wrap;gap:.7rem}.types .key b{font-weight:400}.types .key i{display:inline-block;width:.6rem;height:.6rem;border-radius:2px;margin-right:.3rem;vertical-align:-1px}
+  .bench{padding:.9rem 1.4rem;border-top:1px solid var(--bd);font:.82rem var(--mono);color:var(--mut)}.bench b{color:var(--fg)}
+  .note{margin:1.1rem 0 0;padding:.7rem 1rem;background:var(--pan);border:1px solid var(--bd);border-radius:10px;font-size:.85rem;color:var(--mut);line-height:1.5}.note b{color:var(--fg)}
+  #status{text-align:center;color:var(--mut);margin:1.2rem 0 0;min-height:1.4rem;font-size:.95rem}#status.err{color:var(--bad)}
+  .spin{display:inline-block;width:.8em;height:.8em;border:2px solid var(--bd);border-top-color:var(--ac);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-1px}@keyframes sp{to{transform:rotate(360deg)}}
+  footer{margin:3rem 0 2rem;text-align:center;font-size:.85rem;color:var(--mut)}
+  .tc-g{color:var(--good)}.tc-b{color:var(--bad)}
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <span class="brand">bitcoin<b>·</b>kernel</span>
+  <a href="./index.html">Test suite</a>
+  <a href="./random.html" class="on">Verify a block</a>
+  <a href="./spec.html">Specification</a>
+</div></nav>
+
+<header class="hero"><div class="wrap">
+  <h1>Verify a Bitcoin block.</h1>
+  <p class="sub">Pick a random block, or type a height. The block is fetched live and its proof of work, merkle root and structure are checked right here in your browser. No server. The validator is the page.</p>
+  <div class="controls">
+    <button id="rand" class="primary">🎲 Random block</button>
+    <input id="height" type="number" min="0" placeholder="block height" inputmode="numeric">
+    <button id="go">Verify</button>
+  </div>
+  <p id="status"></p>
+</div></header>
+
+<div class="wrap">
+  <div id="card"></div>
+  <p class="note"><b>Phase 1:</b> this checks proof of work, the merkle root, the witness commitment and block structure, all of which live inside the block itself. Script and signature validation needs the spending history (the prevouts), which is phase 2. So a pass here means the block is structurally sound, not that every signature was checked.</p>
+</div>
+
+<footer>An independent JavaScript implementation. Block data from <span id="prov">mempool.guide</span>. <a href="./index.html">bitcoin-kernel</a></footer>
+
+<script type="module">
+import { Codec } from './engine/codec/codec.js';
+import { BlockEngine } from './engine/codec/blocks.js';
+import { ScriptEngine } from './engine/codec/script.js';
+import core from './engine/schema/core.js';
+import proof from './engine/schema/proof.js';
+import chain from './engine/schema/chain.js';
+import validate from './engine/schema/validate.js';
+import script from './engine/schema/script.js';
+
+const codec = new Codec(core, proof);
+const be = BlockEngine.fromSchemas(codec, chain, validate, script, 'btc:mainnet');
+const se = ScriptEngine.fromSchemas(script, chain);
+
+const PROVIDERS = ['https://mempool.guide', 'https://mempool.space'];
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+const fmt = (n) => Number(n).toLocaleString();
+const TCOL = { p2pk: '#57606a', p2pkh: '#0969da', p2ms: '#6e7781', multisig: '#6e7781', p2sh: '#8250df', p2wpkh: '#1a7f37', p2wsh: '#bf8700', p2tr: '#e8830c', 'p2tr-keypath': '#e8830c', nulldata: '#a0a0a0', unknown: '#cf222e' };
+
+let TIP = null, BASE = PROVIDERS[0];
+async function api(path) {
+  for (const base of PROVIDERS) {
+    try {
+      const r = await fetch(base + path);
+      if (!r.ok) throw new Error(r.status);
+      BASE = base; $('prov').textContent = base.replace('https://', '');
+      return r;
+    } catch (e) { /* try next provider */ }
+  }
+  throw new Error('all block explorers unreachable (CORS or offline)');
+}
+
+async function verify(height) {
+  $('rand').disabled = $('go').disabled = true;
+  $('card').classList.remove('show');
+  $('status').className = ''; $('status').innerHTML = `<span class="spin"></span> fetching block ${fmt(height)}`;
+  try {
+    const tF = performance.now();
+    const hash = (await (await api(`/api/block-height/${height}`)).text()).trim();
+    const buf = await (await api(`/api/block/${hash}/raw`)).arrayBuffer();
+    const fetchMs = performance.now() - tF;
+
+    const bytes = new Uint8Array(buf);
+    let hex = ''; for (let i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, '0');
+
+    const tD = performance.now();
+    const block = codec.decode('Block', hex);
+    const decodeMs = performance.now() - tD;
+
+    const tV = performance.now();
+    const txids = block.transactions.map((t) => codec.txid(t));
+    const powOk = codec.checkProofOfWork(block.header);
+    const merkleGot = codec.merkleRoot(txids);
+    const merkleOk = merkleGot === block.header.merkleRoot;
+    const struct = be.validateBlockStructure(block).results;
+    const structFails = struct.filter((r) => r.ok === false);
+    const verifyMs = performance.now() - tV;
+
+    let ins = 0, outs = 0, sigs = 0; const types = {};
+    for (const t of block.transactions) {
+      ins += t.inputs.length; outs += t.outputs.length;
+      for (const w of (t.witness || [])) sigs += (w || []).length ? 1 : 0;
+      for (const o of t.outputs) { const c = se.classify(o.scriptPubKey).type || 'unknown'; types[c] = (types[c] || 0) + 1; }
+    }
+    const target = codec.expandCompact(block.header.bits).toString(16).padStart(64, '0');
+    const allOk = powOk && merkleOk && structFails.length === 0;
+    render({ height, hash, block, powOk, merkleGot, merkleOk, struct, structFails, ins, outs, types, target, allOk,
+      bytes: bytes.length, weight: be.blockWeight(block), fetchMs, decodeMs, verifyMs });
+    $('status').innerHTML = '';
+    $('height').value = height;
+  } catch (e) {
+    $('status').className = 'err'; $('status').textContent = 'Error: ' + e.message;
+  } finally {
+    $('rand').disabled = $('go').disabled = false;
+  }
+}
+
+function chk(ok, title, detail, skipped) {
+  const ic = skipped ? '<span class="ic s">○</span>' : ok ? '<span class="ic g">✓</span>' : '<span class="ic b">✗</span>';
+  return `<div class="chk">${ic}<div class="t"><b>${esc(title)}</b>${detail ? `<div class="d">${detail}</div>` : ''}</div></div>`;
+}
+
+function render(r) {
+  const d = new Date(r.block.header.time * 1000).toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+  const tbar = Object.entries(r.types).sort((a, b) => b[1] - a[1]);
+  const totalOut = r.outs || 1;
+  const bar = tbar.map(([k, n]) => `<i style="background:${TCOL[k] || '#999'};width:${(n / totalOut * 100).toFixed(1)}%"></i>`).join('');
+  const key = tbar.map(([k, n]) => `<b><i style="background:${TCOL[k] || '#999'}"></i>${esc(k)} ${fmt(n)}</b>`).join('');
+  const structOk = r.structFails.length === 0;
+  $('card').innerHTML = `
+    <div class="chead">
+      <div class="h">Block ${fmt(r.height)}</div>
+      <div class="hash">${esc(r.hash)}</div>
+      <div class="meta">${d} &middot; ${(r.bytes / 1024).toFixed(0)} KB &middot; weight ${fmt(r.weight)}</div>
+    </div>
+    <div class="verdict ${r.allOk ? 'ok' : 'no'}">${r.allOk ? '✓ Structurally valid' : '✗ A structural check failed'}</div>
+    <div class="checks">
+      ${chk(r.powOk, 'Proof of work', `hash ${r.hash.slice(0, 20)}… &le; target ${r.target.replace(/^0+/, '0…').slice(0, 20)}…`)}
+      ${chk(r.merkleOk, `Merkle root (${fmt(r.block.transactions.length)} transactions)`, `${r.merkleGot.slice(0, 32)}…`)}
+      ${chk(structOk, 'Block structure & limits', structOk ? 'coinbase, weight, sigops, witness commitment, no duplicates' : r.structFails.map((f) => esc(f.label)).join(', '))}
+      ${chk(false, 'Scripts & signatures', `${fmt(r.ins)} inputs not executed — needs prevouts (phase 2)`, true)}
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="n">${fmt(r.block.transactions.length)}</div><div class="l">Transactions</div></div>
+      <div class="stat"><div class="n">${fmt(r.ins)}</div><div class="l">Inputs</div></div>
+      <div class="stat"><div class="n">${fmt(r.outs)}</div><div class="l">Outputs</div></div>
+      <div class="stat"><div class="n">${(r.weight / 4000).toFixed(0)}<span style="font-size:.7rem;color:var(--mut)">/1000 vB</span></div><div class="l">Virtual size</div></div>
+    </div>
+    ${tbar.length ? `<div class="types"><div style="font-size:.85rem;color:var(--mut)">Output script types</div><div class="bar">${bar}</div><div class="key">${key}</div></div>` : ''}
+    <div class="bench">fetched <b>${r.fetchMs.toFixed(0)} ms</b> &middot; decoded <b>${r.decodeMs.toFixed(0)} ms</b> &middot; proof of work + merkle + structure verified in <b>${r.verifyMs.toFixed(0)} ms</b>, in your browser</div>`;
+  $('card').classList.add('show');
+}
+
+async function randomBlock() {
+  $('status').innerHTML = '<span class="spin"></span> picking a block';
+  try {
+    if (TIP == null) TIP = Number((await (await api('/api/blocks/tip/height')).text()).trim());
+    verify(Math.floor(Math.random() * (TIP + 1)));
+  } catch (e) { $('status').className = 'err'; $('status').textContent = 'Error: ' + e.message; }
+}
+
+$('rand').onclick = randomBlock;
+$('go').onclick = () => { const h = parseInt($('height').value, 10); if (Number.isFinite(h) && h >= 0) verify(h); };
+$('height').onkeydown = (e) => { if (e.key === 'Enter') $('go').click(); };
+randomBlock();
+</script>
+</body>
+</html>
