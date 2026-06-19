@@ -386,7 +386,7 @@ const html = `<!doctype html>
   .wrap{max-width:940px;margin:0 auto;padding:0 1.5rem}
   nav{border-bottom:1px solid var(--bd)}
   nav .wrap{display:flex;align-items:center;gap:1.3rem;height:56px}
-  nav .brand{font-weight:700;letter-spacing:-.3px;margin-right:auto}nav .brand b{color:var(--ac)}
+  nav .brand{font-weight:700;letter-spacing:-.3px;margin-right:auto;color:var(--fg);font-size:1rem;text-decoration:none}nav .brand b{color:var(--ac)}
   nav a{color:var(--mut);font-size:.9rem;font-weight:500}
   .note{margin:1.1rem 0 0;padding:.7rem 1rem;background:var(--pan);border:1px solid var(--bd);border-radius:10px;font-size:.9rem;color:var(--mut);line-height:1.55}
   .note b{color:var(--fg)}
@@ -444,7 +444,7 @@ const html = `<!doctype html>
 </head>
 <body>
 <nav><div class="wrap">
-  <span class="brand">bitcoin<b>·</b>kernel</span>
+  <a href="./index.html" class="brand">bitcoin<b>·</b>kernel</a>
   <a href="./random.html">Verify a block</a>
   <a href="./spec.html">Specification</a>
   <a href="${ENGINE_REPO}">Source ↗</a>
@@ -540,7 +540,7 @@ const spec = `<!doctype html>
   a{color:var(--ac2);text-decoration:none}a:hover{text-decoration:underline}
   nav{border-bottom:1px solid var(--bd);position:sticky;top:0;background:rgba(255,255,255,.9);backdrop-filter:blur(8px)}
   nav .in{max-width:860px;margin:0 auto;padding:0 1.5rem;display:flex;align-items:center;gap:1.3rem;height:54px}
-  nav .brand{font-weight:700;letter-spacing:-.3px;margin-right:auto}nav .brand b{color:var(--ac)}
+  nav .brand{font-weight:700;letter-spacing:-.3px;margin-right:auto;color:var(--fg);font-size:1rem;text-decoration:none}nav .brand b{color:var(--ac)}
   nav a{color:var(--mut);font-size:.9rem;font-weight:500}
   main{max-width:860px;margin:0 auto;padding:0 1.5rem 5rem}
   header.doc{padding:3rem 0 1.4rem;border-bottom:1px solid var(--bd)}
@@ -576,7 +576,7 @@ const spec = `<!doctype html>
 </head>
 <body>
 <nav><div class="in">
-  <span class="brand">bitcoin<b>·</b>kernel</span>
+  <a href="./index.html" class="brand">bitcoin<b>·</b>kernel</a>
   <a href="./index.html">Live demo</a>
   <a href="${ENGINE_REPO}">Source ↗</a>
 </div></nav>
