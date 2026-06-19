@@ -489,7 +489,7 @@ const html = `<!doctype html>
     <a href="${CORE_TESTS}">Bitcoin Core's script vectors</a>
     <a href="${ENGINE_REPO}">bitcoin-kernel</a>
   </div>
-  <p class="fnote">Everything runs in your browser with no external calls. The vectors and the code are copied into this repository (v${VERSION}); nothing is fetched at runtime. Independent community project, not affiliated with Bitcoin Core.</p>
+  <p class="fnote">Everything runs in your browser with no external calls. The vectors and the code are copied into this repository (v${VERSION}); nothing is fetched at runtime.</p>
 </div></footer>
 <script type="module">${APP}</script>
 </body>
