@@ -62,6 +62,7 @@
   .chk .ms{margin-left:auto;font:.78rem var(--mono);color:var(--mut);white-space:nowrap;align-self:center}
   .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(7rem,1fr));gap:.1rem;background:var(--bd);border-top:1px solid var(--bd)}
   .stat{background:#fff;padding:.8rem 1rem}.stat .n{font:800 1.2rem var(--mono);letter-spacing:-.5px}.stat .l{font-size:.74rem;color:var(--mut);text-transform:uppercase;letter-spacing:.03em}
+  .stats.s-block .n{color:var(--ac)}.stats.s-perf .n{color:var(--good)}
   .types{padding:1rem 1.4rem;border-top:1px solid var(--bd)}.types .bar{display:flex;height:.7rem;border-radius:99px;overflow:hidden;margin:.5rem 0}.types .bar i{display:block;transition:width .5s ease}
   .types .key{font:.78rem var(--mono);color:var(--mut);display:flex;flex-wrap:wrap;gap:.7rem}.types .key span i{display:inline-block;width:.6rem;height:.6rem;border-radius:2px;margin-right:.3rem;vertical-align:-1px}
   .bench{padding:.9rem 1.4rem;border-top:1px solid var(--bd);font:.82rem var(--mono);color:var(--mut)}.bench b{color:var(--fg)}
@@ -245,14 +246,15 @@ function render(r) {
       ${chk(structOk, 'Block structure & limits', structOk ? 'coinbase, weight, sigops, witness commitment, no duplicates' : r.structFails.map((f) => esc(f.label)).join(', '), null, false, 180)}
     </div>
     <div class="seclab">The block</div>
-    <div class="stats">
+    <div class="stats s-block">
       <div class="stat"><div class="n"><span class="cu" data-c="${nTx}">0</span></div><div class="l">Transactions</div></div>
       <div class="stat"><div class="n"><span class="cu" data-c="${r.ins}">0</span></div><div class="l">Inputs</div></div>
       <div class="stat"><div class="n"><span class="cu" data-c="${r.outs}">0</span></div><div class="l">Outputs</div></div>
+      <div class="stat"><div class="n">${(r.bytes / 1e6).toFixed(2)}${u('MB')}</div><div class="l">Size</div></div>
       <div class="stat"><div class="n">${(r.weight / 4000).toFixed(0)}${u('k vB')}</div><div class="l">Virtual size</div></div>
     </div>
     <div class="seclab">Performance, in your browser</div>
-    <div class="stats">
+    <div class="stats s-perf">
       <div class="stat"><div class="n"><span class="cu" data-c="${Math.round(r.fetchMs)}">0</span>${u('ms')}</div><div class="l">Fetch</div></div>
       <div class="stat"><div class="n">${mbps}${u('MB/s')}</div><div class="l">Download</div></div>
       <div class="stat"><div class="n"><span class="cu" data-c="${Math.round(r.decodeMs)}">0</span>${u('ms')}</div><div class="l">Decode</div></div>
