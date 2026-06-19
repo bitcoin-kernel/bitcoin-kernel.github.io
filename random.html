@@ -247,10 +247,10 @@ function render(r) {
     </div>
     <div class="seclab">The block</div>
     <div class="stats s-block">
+      <div class="stat"><div class="n">${(r.bytes / 1e6).toFixed(2)}${u('MB')}</div><div class="l">Size</div></div>
       <div class="stat"><div class="n"><span class="cu" data-c="${nTx}">0</span></div><div class="l">Transactions</div></div>
       <div class="stat"><div class="n"><span class="cu" data-c="${r.ins}">0</span></div><div class="l">Inputs</div></div>
       <div class="stat"><div class="n"><span class="cu" data-c="${r.outs}">0</span></div><div class="l">Outputs</div></div>
-      <div class="stat"><div class="n">${(r.bytes / 1e6).toFixed(2)}${u('MB')}</div><div class="l">Size</div></div>
       <div class="stat"><div class="n">${(r.weight / 4000).toFixed(0)}${u('k vB')}</div><div class="l">Virtual size</div></div>
     </div>
     <div class="seclab">Performance, in your browser</div>
