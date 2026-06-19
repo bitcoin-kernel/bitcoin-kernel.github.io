@@ -233,7 +233,7 @@ function render(r) {
       <div class="vc"><span class="cu" data-c="${nTx}">0</span> <span style="font-size:1.5rem;letter-spacing:-1px">/ ${fmt(nTx)}</span></div>
       <div class="sl">${r.allOk ? 'transactions verified' : 'a structural check failed'}</div>
       <div class="vbar"><i id="vfill"></i></div>
-      <div class="pct">${r.allOk ? '100%' : 'failed'}<span class="t"> &middot; proof of work, merkle &amp; structure in ${r.verifyMs.toFixed(0)} ms, in your browser</span></div>
+      <div class="pct">${r.allOk ? '100%' : 'failed'}<span class="t"> &middot; proof of work, merkle &amp; structure in <b style="color:var(--good);font-weight:800">${r.verifyMs.toFixed(0)} ms</b>, in your browser</span></div>
     </div>
     <div class="chead">
       <div class="h">Block ${fmt(r.height)}</div>
