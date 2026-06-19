@@ -77,7 +77,7 @@ await writeFile(here('engine/package.json'), JSON.stringify({
   keywords: ['bitcoin', 'consensus', 'validation', 'script', 'esm', 'browser'],
   license: 'MIT',
   repository: { type: 'git', url: 'git+https://github.com/bitcoin-kernel/bitcoin-kernel.github.io.git' },
-  homepage: 'https://bitcoin-kernel.github.io/',
+  homepage: 'https://bitcoin-kernel.com/',
 }, null, 2) + '\n');
 
 const VERSION = JSON.parse(await readFile(src('package.json'))).version;
@@ -370,14 +370,14 @@ const html = `<!doctype html>
 <meta property="og:title" content="bitcoin-kernel">
 <meta property="og:description" content="The rules of Bitcoin, tested live in your browser. Headers, difficulty, blocks, transactions, scripts and proofs, all from real test vectors.">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://bitcoin-kernel.github.io/">
-<meta property="og:image" content="https://bitcoin-kernel.github.io/og.png?v=3">
+<meta property="og:url" content="https://bitcoin-kernel.com/">
+<meta property="og:image" content="https://bitcoin-kernel.com/og.png?v=3">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="bitcoin-kernel">
 <meta name="twitter:description" content="The rules of Bitcoin, tested live in your browser, from real test vectors.">
-<meta name="twitter:image" content="https://bitcoin-kernel.github.io/og.png?v=3">
+<meta name="twitter:image" content="https://bitcoin-kernel.com/og.png?v=3">
 <style>
   :root{--bg:#fff;--fg:#16181d;--mut:${C.mut};--bd:${C.border};--pan:${C.panel};--ac:${C.accent};--ac2:${C.accent2};--good:${C.good};--bad:${C.bad};--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
   *{box-sizing:border-box}html{scroll-behavior:smooth}
@@ -522,12 +522,12 @@ const spec = `<!doctype html>
 <meta property="og:title" content="bitcoin-kernel specification">
 <meta property="og:description" content="A conformance specification for Bitcoin's consensus rules: normative rules, a test suite, and an independent implementation that runs on Node and in the browser.">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://bitcoin-kernel.github.io/spec.html">
-<meta property="og:image" content="https://bitcoin-kernel.github.io/og.png?v=3">
+<meta property="og:url" content="https://bitcoin-kernel.com/spec.html">
+<meta property="og:image" content="https://bitcoin-kernel.com/og.png?v=3">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:image" content="https://bitcoin-kernel.github.io/og.png?v=3">
+<meta name="twitter:image" content="https://bitcoin-kernel.com/og.png?v=3">
 <style>
   :root{--bg:#fff;--fg:#16181d;--mut:${C.mut};--bd:${C.border};--pan:${C.panel};--ac:${C.accent};--ac2:${C.accent2};--good:${C.good};--bad:${C.bad};--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
   *{box-sizing:border-box}html{scroll-behavior:smooth}
