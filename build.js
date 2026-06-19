@@ -388,6 +388,8 @@ const html = `<!doctype html>
   nav .wrap{display:flex;align-items:center;gap:1.3rem;height:56px}
   nav .brand{font-weight:700;letter-spacing:-.3px;margin-right:auto}nav .brand b{color:var(--ac)}
   nav a{color:var(--mut);font-size:.9rem;font-weight:500}
+  .note{margin:1.1rem 0 0;padding:.7rem 1rem;background:var(--pan);border:1px solid var(--bd);border-radius:10px;font-size:.9rem;color:var(--mut);line-height:1.55}
+  .note b{color:var(--fg)}
   header.hero{padding:3.2rem 0 1.2rem;text-align:center}
   h1{font-size:2.7rem;line-height:1.05;letter-spacing:-1.2px;margin:0;font-weight:800}
   .sub{font-size:1.14rem;color:#37414d;margin:1rem auto 0;max-width:38rem;line-height:1.5}
@@ -446,6 +448,8 @@ const html = `<!doctype html>
   <a href="./spec.html">Specification</a>
   <a href="${ENGINE_REPO}">Source ↗</a>
 </div></nav>
+
+<div class="wrap"><p class="note"><b>Note:</b> An independent implementation of the Bitcoin kernel concept, a standalone consensus engine separated from wallet and networking, written in JavaScript for browsers and phones. Not affiliated with Bitcoin Core's <a href="https://thecharlatan.ch/Kernel/">libbitcoinkernel</a> and shares none of its code. For learning and light-client use, not a substitute for a full node.</p></div>
 
 <header class="hero"><div class="wrap">
   <h1>The rules of Bitcoin.</h1>
