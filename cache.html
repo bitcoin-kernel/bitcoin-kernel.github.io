@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bitcoin-kernel - your node</title>
+<meta name="description" content="The slice of the Bitcoin chain stored and verified on this device. Each block was fetched once, checked by the engine, and kept so it never has to be fetched again.">
+<meta property="og:title" content="bitcoin-kernel - your node">
+<meta property="og:description" content="The blocks your browser has cached and verified, ready to serve.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://bitcoin-kernel.com/cache.html">
+<style>
+  :root{--bg:#fff;--fg:#16181d;--mut:#5b6470;--bd:#e6e8eb;--pan:#fafbfc;--ac:#e8830c;--ac2:#0969da;--good:#1a7f37;--bad:#cf222e;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:var(--ac2);text-decoration:none}a:hover{text-decoration:underline}
+  .wrap{max-width:760px;margin:0 auto;padding:0 1.5rem}
+  nav{border-bottom:1px solid var(--bd)}nav .wrap{display:flex;align-items:center;gap:1.3rem;height:56px;max-width:940px}
+  nav .brand{font-weight:700;letter-spacing:-.3px;margin-right:auto;color:var(--fg);font-size:1rem;text-decoration:none}nav .brand b{color:var(--ac)}
+  nav a{color:var(--mut);font-size:.9rem;font-weight:500}nav a.on{color:var(--fg)}
+  header.hero{padding:2.4rem 0 1rem;text-align:center}
+  h1{font-size:2.1rem;line-height:1.08;letter-spacing:-1px;margin:0;font-weight:800}
+  .sub{font-size:1.05rem;color:#37414d;margin:.8rem auto 0;max-width:36rem}
+  button{font:inherit;font-weight:600;cursor:pointer;border:1px solid var(--bd);background:#fff;border-radius:10px;padding:.55rem 1rem;transition:border-color .12s,background .12s}
+  button:hover{border-color:var(--ac)}
+  button.danger:hover{border-color:var(--bad);color:var(--bad)}
+
+  #card{margin:1.6rem 0 0;border:1px solid var(--bd);border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(16,18,29,.06)}
+  .hero2{padding:1.7rem 1.4rem 1.4rem;text-align:center;background:linear-gradient(180deg,#fff7ee,#fff);border-bottom:1px solid var(--bd)}
+  .hero2 .big{font:800 3rem var(--mono);letter-spacing:-2px;color:var(--ac);line-height:1}
+  .hero2 .lab{font-size:.95rem;color:#37414d;margin-top:.35rem}
+  .hero2 .bar{height:.6rem;background:var(--bd);border-radius:99px;overflow:hidden;margin:1rem auto .4rem;max-width:24rem}
+  .hero2 .bar i{display:block;height:100%;width:0;background:var(--ac);border-radius:99px;transition:width .9s cubic-bezier(.2,.85,.25,1)}
+  .hero2 .meta{font:.8rem var(--mono);color:var(--mut)}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(8rem,1fr));gap:.1rem;background:var(--bd);border-top:1px solid var(--bd)}
+  .stat{background:#fff;padding:.9rem 1rem}.stat .n{font:800 1.4rem var(--mono);letter-spacing:-.5px}.stat .l{font-size:.74rem;color:var(--mut);text-transform:uppercase;letter-spacing:.03em}
+  .stat .n.g{color:var(--good)}.stat .n.a{color:var(--ac)}.stat .n.b{color:var(--ac2)}
+  .seclab{padding:.95rem 1.4rem .15rem;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);border-top:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center}
+  .blocks{padding:.1rem 0}
+  .brow{display:flex;align-items:center;gap:.7rem;padding:.5rem 1.4rem;border-top:1px solid var(--bd);font:.8rem var(--mono)}
+  .brow .h{font-weight:700;width:5.5rem;flex-shrink:0}
+  .brow .v{flex-shrink:0;width:1.2rem;text-align:center}.brow .v.ok{color:var(--good)}.brow .v.no{color:var(--mut)}
+  .brow .sz{color:var(--mut);width:5rem;flex-shrink:0}
+  .brow .hash{color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .empty{padding:2rem 1.4rem;text-align:center;color:var(--mut)}
+  .note{margin:1.1rem 0 0;padding:.7rem 1rem;background:var(--pan);border:1px solid var(--bd);border-radius:10px;font-size:.85rem;color:var(--mut);line-height:1.5}.note b{color:var(--fg)}
+  footer{margin:3rem 0 2rem;text-align:center;font-size:.85rem;color:var(--mut)}
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <a href="./index.html" class="brand">bitcoin<b>·</b>kernel</a>
+  <a href="./index.html">Test suite</a>
+  <a href="./random.html">Verify a block</a>
+  <a href="./cache.html" class="on">Your node</a>
+  <a href="./spec.html">Specification</a>
+</div></nav>
+
+<header class="hero"><div class="wrap">
+  <h1>Your node.</h1>
+  <p class="sub">The slice of the Bitcoin chain stored on this device. Each block was fetched once, verified by the engine, and kept here so it never has to be fetched again. As bitcoin-kernel grows toward a shared mesh, this is what your node can serve to others.</p>
+</div></header>
+
+<div class="wrap">
+  <div id="card"></div>
+  <p class="note"><b>Where this is going.</b> Today each browser keeps its own small cache. Next, browsers that hold a block can serve it to each other directly, so the chain is held by the swarm rather than one explorer. A stats page like this is how a node knows what it can offer the mesh. Storage is shared with the browser and bounded; old blocks are dropped as new ones arrive.</p>
+</div>
+
+<footer>An independent JavaScript implementation. <a href="./index.html">bitcoin-kernel</a></footer>
+
+<script type="module">
+import { cache } from './cache.js';
+
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => Number(n).toLocaleString();
+const PROVIDERS = ['https://mempool.space', 'https://blockstream.info'];
+async function tipHeight() {
+  for (const b of PROVIDERS) { try { const r = await fetch(b + '/api/blocks/tip/height'); if (r.ok) return Number((await r.text()).trim()); } catch {} }
+  return null;
+}
+
+function render(s, q, tip, list) {
+  const mb = (s.bytes / 1e6).toFixed(s.bytes >= 1e7 ? 0 : 1);
+  const winPct = Math.min(100, s.n / cache.CAP * 100);
+  const usedGB = q.quota ? (q.usage / 1e9).toFixed(2) : null;
+  const quotaGB = q.quota ? (q.quota / 1e9).toFixed(0) : null;
+  const rows = list.length ? list.map((e) => `
+    <div class="brow">
+      <span class="h"><a href="./random.html?height=${e.height}">${fmt(e.height)}</a></span>
+      <span class="v ${e.verified ? 'ok' : 'no'}">${e.verified ? '✓' : '○'}</span>
+      <span class="sz">${(e.size / 1e6).toFixed(2)} MB</span>
+      <span class="hash">${e.hash}</span>
+    </div>`).join('') : `<div class="empty">No blocks cached yet. <a href="./random.html">Verify a block</a> and it will be stored here.</div>`;
+  $('card').innerHTML = `
+    <div class="hero2">
+      <div class="big">${fmt(s.n)}</div>
+      <div class="lab">block${s.n === 1 ? '' : 's'} cached on this device${tip ? ` &middot; out of ${fmt(tip)} in the chain` : ''}</div>
+      <div class="bar"><i id="winfill"></i></div>
+      <div class="meta">${s.n} / ${cache.CAP} block cache window${usedGB ? ` &middot; ${usedGB} GB of ${quotaGB} GB browser storage used` : ''}</div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="n a">${fmt(s.n)}</div><div class="l">Blocks</div></div>
+      <div class="stat"><div class="n g">${fmt(s.verified)}</div><div class="l">Verified</div></div>
+      <div class="stat"><div class="n">${mb}<span style="font-size:.7rem;color:var(--mut);font-weight:400"> MB</span></div><div class="l">On device</div></div>
+      <div class="stat"><div class="n b">${tip ? fmt(tip) : '—'}</div><div class="l">Chain height</div></div>
+    </div>
+    <div class="seclab"><span>Cached blocks</span>${list.length ? `<button id="clear" class="danger" style="font-size:.72rem;padding:.25rem .6rem">Clear cache</button>` : ''}</div>
+    <div class="blocks">${rows}</div>`;
+  requestAnimationFrame(() => { const f = $('winfill'); if (f) f.style.width = winPct + '%'; });
+  const cb = $('clear');
+  if (cb) cb.onclick = async () => { if (confirm('Remove all cached blocks from this device?')) { await cache.clear(); load(); } };
+}
+
+async function load() {
+  await cache.init();
+  const s = cache.stats();
+  const list = cache.entries();
+  render(s, await cache.quota(), null, list);          // paint instantly from local data
+  const tip = await tipHeight();                        // then fill in the chain height
+  if (tip != null) render(s, await cache.quota(), tip, list);
+}
+load();
+</script>
+</body>
+</html>

@@ -446,6 +446,7 @@ const html = `<!doctype html>
 <nav><div class="wrap">
   <a href="./index.html" class="brand">bitcoin<b>·</b>kernel</a>
   <a href="./random.html">Verify a block</a>
+  <a href="./cache.html">Your node</a>
   <a href="./spec.html">Specification</a>
   <a href="${ENGINE_REPO}">Source ↗</a>
 </div></nav>
@@ -578,6 +579,7 @@ const spec = `<!doctype html>
 <nav><div class="in">
   <a href="./index.html" class="brand">bitcoin<b>·</b>kernel</a>
   <a href="./index.html">Live demo</a>
+  <a href="./cache.html">Your node</a>
   <a href="${ENGINE_REPO}">Source ↗</a>
 </div></nav>
 <main>

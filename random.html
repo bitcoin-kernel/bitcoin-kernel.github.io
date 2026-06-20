@@ -87,6 +87,7 @@
   <a href="./index.html" class="brand">bitcoin<b>·</b>kernel</a>
   <a href="./index.html">Test suite</a>
   <a href="./random.html" class="on">Verify a block</a>
+  <a href="./cache.html">Your node</a>
   <a href="./spec.html">Specification</a>
 </div></nav>
 
@@ -123,6 +124,7 @@ import proof from './engine/schema/proof.js';
 import chain from './engine/schema/chain.js';
 import validate from './engine/schema/validate.js';
 import script from './engine/schema/script.js';
+import { cache } from './cache.js';
 
 const codec = new Codec(core, proof);
 const be = BlockEngine.fromSchemas(codec, chain, validate, script, 'btc:mainnet');
@@ -155,65 +157,6 @@ async function api(path, { stream } = {}) {
   }
   throw new Error('block explorers unreachable (' + (lastErr ? lastErr.message : 'CORS/offline') + ')');
 }
-
-// --- OPFS block cache (proof of concept) ---
-// A small Store seam: keep the most recent CAP blocks on the device so revisits
-// don't go back to the explorer. Backing is naive (one file per block, named by
-// hash) but the interface mirrors the node's BlockStore so it can evolve.
-// Blocks are immutable by hash; height->hash near the tip can change on a reorg,
-// so we re-resolve recent heights rather than trusting the cached mapping there.
-const cache = (() => {
-  const CAP = 50; // most-recent blocks to retain (LRU); recent blocks ~2-3 MB each
-  let dir = null, idx = { byHeight: {}, byHash: {} }, ready = null;
-  async function load() {
-    if (!navigator.storage || !navigator.storage.getDirectory) throw new Error('no OPFS');
-    const root = await navigator.storage.getDirectory();
-    dir = await root.getDirectoryHandle('blocks', { create: true });
-    try { idx = JSON.parse(await (await (await root.getFileHandle('blocks-index.json')).getFile()).text()); } catch {}
-    idx.byHeight = idx.byHeight || {}; idx.byHash = idx.byHash || {};
-    if (navigator.storage.persist) navigator.storage.persist();
-  }
-  async function saveIndex() {
-    const root = await navigator.storage.getDirectory();
-    const w = await (await root.getFileHandle('blocks-index.json', { create: true })).createWritable();
-    await w.write(JSON.stringify(idx)); await w.close();
-  }
-  return {
-    init() { if (!ready) ready = load().then(() => true).catch(() => { dir = null; return false; }); return ready; },
-    hashForHeight: (h) => idx.byHeight[h] || null,
-    async get(hash) {
-      if (!dir || !hash || !idx.byHash[hash]) return null;
-      try {
-        const bytes = new Uint8Array(await (await (await dir.getFileHandle(hash + '.bin')).getFile()).arrayBuffer());
-        idx.byHash[hash].last = Date.now();
-        return bytes;
-      } catch { delete idx.byHash[hash]; return null; }
-    },
-    async put(hash, height, bytes) {
-      if (!dir) return;
-      try {
-        const w = await (await dir.getFileHandle(hash + '.bin', { create: true })).createWritable();
-        await w.write(bytes); await w.close();
-        idx.byHash[hash] = { height, size: bytes.length, last: Date.now() };
-        idx.byHeight[height] = hash;
-        const all = Object.keys(idx.byHash);
-        if (all.length > CAP) {
-          all.sort((a, b) => idx.byHash[a].last - idx.byHash[b].last);
-          for (const old of all.slice(0, all.length - CAP)) {
-            try { await dir.removeEntry(old + '.bin'); } catch {}
-            const oh = idx.byHash[old].height; delete idx.byHash[old];
-            if (idx.byHeight[oh] === old) delete idx.byHeight[oh];
-          }
-        }
-        await saveIndex();
-      } catch {}
-    },
-    stats() {
-      const e = Object.values(idx.byHash);
-      return { n: e.length, bytes: e.reduce((s, x) => s + (x.size || 0), 0) };
-    },
-  };
-})();
 
 function showCacheStat() {
   const s = cache.stats();
@@ -292,8 +235,10 @@ async function verify(height, push = true) {
     const target = codec.expandCompact(block.header.bits).toString(16).padStart(64, '0');
 
     $('live').classList.remove('on');
+    const allOk = powOk && merkleOk && structFails.length === 0;
+    if (allOk) cache.markVerified(hash); // record that this cached block passed full verification
     render({ height, hash, block, txids, powOk, merkleGot, merkleOk, struct, structFails, ins, outs, types, target,
-      allOk: powOk && merkleOk && structFails.length === 0, bytes: received, weight: be.blockWeight(block),
+      allOk, bytes: received, weight: be.blockWeight(block),
       fetchMs, decodeMs, verifyMs, merkleMs, dlMs, fromCache });
     showCacheStat();
     $('height').value = height;
