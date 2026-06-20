@@ -126,10 +126,13 @@ import validate from './engine/schema/validate.js';
 import script from './engine/schema/script.js';
 import { cache } from './cache.js';
 import { Sources, CacheSource, ExplorerSource } from './sources.js';
+import { setVerifyBackend } from './engine/codec/secp256k1.js';
+import { loadSecpWasm, wasmBackend } from './engine/wasm/secp-wasm.js';
 
 const codec = new Codec(core, proof);
 const be = BlockEngine.fromSchemas(codec, chain, validate, script, 'btc:mainnet');
 const se = ScriptEngine.fromSchemas(script, chain);
+const wasmReady = loadSecpWasm(); // kick off WASM secp load; tx verification awaits it
 
 const $ = (id) => document.getElementById(id);
 const busy = (b) => { $('rand').disabled = $('go').disabled = $('tip').disabled = b; };
@@ -314,6 +317,8 @@ async function showTx(txid, push = true) {
     const tx = await sources.tx(txid);
     let ver = null;
     try {
+      const usingWasm = await wasmReady;       // WASM secp if available, else pure-JS
+      setVerifyBackend(usingWasm ? wasmBackend : null);
       step('verifying scripts & signatures with the engine');
       const hex = await sources.txHex(txid);
       const etx = codec.decode('Transaction', hex);
@@ -326,7 +331,7 @@ async function showTx(txid, push = true) {
       const total = res.filter((r) => !r.coinbase).length;
       const ok = res.filter((r) => r.ok === true).length;
       const skipped = res.filter((r) => r.ok === null).length;
-      ver = { res, ms, total, ok, skipped, allOk: total > 0 && ok === total };
+      ver = { res, ms, total, ok, skipped, allOk: total > 0 && ok === total, backend: usingWasm ? 'WASM secp256k1' : 'pure JS' };
     } catch (e) { ver = { error: e.message }; }
     cache.indexTx(tx.txid, tx.status && tx.status.block_height); // learn this tx's height too
     // resolve each input's funding block from the local index only — no explorer calls
@@ -370,7 +375,7 @@ function renderTx(tx, ver, funds = {}) {
     vhero = `<div class="vhero ${ver.allOk ? '' : 'bad'}" style="padding:1.4rem 1.4rem 1.2rem">
       <div class="vc" style="font-size:2.2rem"><span class="cu" data-c="${ver.ok}">0</span> <span style="font-size:1.2rem;letter-spacing:-1px">/ ${ver.total}</span></div>
       <div class="sl">${ver.allOk ? 'inputs verified' : ver.ok + ' of ' + ver.total + ' inputs verified'}${ver.skipped ? ` &middot; ${ver.skipped} skipped` : ''}</div>
-      <div class="pct">${ver.allOk ? 'scripts &amp; signatures checked' : 'verification failed'}<span class="t"> &middot; in <b style="color:var(--good);font-weight:800">${ver.ms.toFixed(1)} ms</b> by the engine, in your browser</span></div>
+      <div class="pct">${ver.allOk ? 'scripts &amp; signatures checked' : 'verification failed'}<span class="t"> &middot; in <b style="color:var(--good);font-weight:800">${ver.ms.toFixed(1)} ms</b> by the engine${ver.backend === 'WASM secp256k1' ? ' (<b>WASM</b> secp256k1)' : ''}, in your browser</span></div>
     </div>`;
   } else if (ver && ver.error) {
     vhero = `<div class="note" style="margin:0;border-radius:0;border-left:0;border-right:0;border-top:0">Could not run verification (${esc(ver.error)}); detail shown from the explorer.</div>`;
