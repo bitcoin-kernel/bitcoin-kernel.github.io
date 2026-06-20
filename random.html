@@ -243,7 +243,6 @@ async function verify(height, push = true) {
       step('reading block from your device');
       bytes = cached; hash = ch; received = bytes.length; fromCache = true;
       $('prov').textContent = 'your device (OPFS cache)';
-      await sleep(60);
     } else {
       step(`looking up block ${fmt(height)}`);
       hash = (await (await api(`/api/block-height/${height}`)).text()).trim();
