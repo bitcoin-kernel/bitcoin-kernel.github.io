@@ -65,10 +65,14 @@ export const cache = {
       const prev = idx.byHash[hash] || {};
       idx.byHash[hash] = { height, size: bytes.length, last: Date.now(), verified: prev.verified || false };
       idx.byHeight[height] = hash;
+      // Retention: keep the CAP highest blocks by height, so the node holds a
+      // contiguous recent window from the tip down (not a scatter of whatever
+      // was last touched). "Grow your node" then fills and slides this window
+      // cleanly without evicting its own tip.
       const all = Object.keys(idx.byHash);
       if (all.length > CAP) {
-        all.sort((a, b) => idx.byHash[a].last - idx.byHash[b].last);
-        for (const old of all.slice(0, all.length - CAP)) {
+        all.sort((a, b) => idx.byHash[b].height - idx.byHash[a].height);
+        for (const old of all.slice(CAP)) {
           try { await dir.removeEntry(old + '.bin'); } catch {}
           const oh = idx.byHash[old].height; delete idx.byHash[old];
           if (idx.byHeight[oh] === old) delete idx.byHeight[oh];

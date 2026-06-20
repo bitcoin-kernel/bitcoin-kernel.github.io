@@ -23,6 +23,10 @@
   button{font:inherit;font-weight:600;cursor:pointer;border:1px solid var(--bd);background:#fff;border-radius:10px;padding:.55rem 1rem;transition:border-color .12s,background .12s}
   button:hover{border-color:var(--ac)}
   button.danger:hover{border-color:var(--bad);color:var(--bad)}
+  button.primary{background:var(--ac);color:#fff;border-color:var(--ac)}button.primary:hover{background:#d2760a}
+  button:disabled{opacity:.55;cursor:default}
+  .controls{display:flex;justify-content:center;margin:1.4rem 0 0}
+  .gstat{text-align:center;margin:.7rem 0 0;font:.85rem var(--mono);color:var(--mut);min-height:1.2em}
 
   #card{margin:1.6rem 0 0;border:1px solid var(--bd);border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(16,18,29,.06)}
   .hero2{padding:1.7rem 1.4rem 1.4rem;text-align:center;background:linear-gradient(180deg,#fff7ee,#fff);border-bottom:1px solid var(--bd)}
@@ -58,6 +62,8 @@
 <header class="hero"><div class="wrap">
   <h1>Your node.</h1>
   <p class="sub">The slice of the Bitcoin chain stored on this device. Each block was fetched once, verified by the engine, and kept here so it never has to be fetched again. As bitcoin-kernel grows toward a shared mesh, this is what your node can serve to others.</p>
+  <div class="controls"><button id="grow" class="primary">＋ Grow your node</button></div>
+  <div id="gstat" class="gstat"></div>
 </div></header>
 
 <div class="wrap">
@@ -69,12 +75,61 @@
 
 <script type="module">
 import { cache } from './cache.js';
-import { ExplorerSource } from './sources.js';
+import { Sources, CacheSource, ExplorerSource } from './sources.js';
+import { Codec } from './engine/codec/codec.js';
+import { BlockEngine } from './engine/codec/blocks.js';
+import { bytesToHex } from './engine/codec/hash.js';
+import core from './engine/schema/core.js';
+import proof from './engine/schema/proof.js';
+import chain from './engine/schema/chain.js';
+import validate from './engine/schema/validate.js';
+import script from './engine/schema/script.js';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Number(n).toLocaleString();
-const explorer = new ExplorerSource(['https://mempool.space', 'https://blockstream.info']);
-const tipHeight = () => explorer.tipHeight().catch(() => null);
+const codec = new Codec(core, proof);
+const be = BlockEngine.fromSchemas(codec, chain, validate, script, 'btc:mainnet');
+const sources = new Sources([new CacheSource(cache), new ExplorerSource(['https://mempool.space', 'https://blockstream.info'])]);
+const tipHeight = () => sources.tipHeight().catch(() => null);
+
+// Grow your node: fetch the highest block within the recent window that we don't
+// hold yet, verify it (proof of work, merkle, structure), and store it — so the
+// node fills and follows a contiguous window from the tip down, one block a click.
+async function grow() {
+  const btn = $('grow'), st = $('gstat');
+  btn.disabled = true;
+  try {
+    st.textContent = 'finding the chain tip…';
+    const tip = await sources.tipHeight();
+    await cache.init();
+    const have = new Set(cache.entries().map((e) => e.height));
+    let target = null;
+    for (let h = tip; h > tip - cache.CAP && h >= 0; h--) { if (!have.has(h)) { target = h; break; } }
+    if (target == null) {
+      st.innerHTML = `<b style="color:var(--good)">✓ your node is current</b> — holding the latest ${fmt(Math.min(cache.CAP, tip + 1))} blocks`;
+      return;
+    }
+    st.textContent = `fetching block ${fmt(target)}…`;
+    const hash = await sources.hashForHeight(target);
+    const got = await sources.getBlock(hash);
+    st.textContent = `verifying block ${fmt(target)}…`;
+    const block = codec.decode('Block', bytesToHex(got.bytes));
+    const txids = block.transactions.map((t) => codec.txid(t));
+    const ok = codec.checkProofOfWork(block.header)
+      && codec.merkleRoot(txids) === block.header.merkleRoot
+      && be.validateBlockStructure(block).results.every((r) => r.ok !== false);
+    if (!ok) { st.innerHTML = `<b style="color:var(--bad)">✗ block ${fmt(target)} failed verification</b> — not stored`; return; }
+    await cache.put(hash, target, got.bytes);
+    await cache.markVerified(hash);
+    await cache.indexBlock(target, txids);
+    st.innerHTML = `<b style="color:var(--good)">✓ verified &amp; added block ${fmt(target)}</b> &middot; ${fmt(block.transactions.length)} transactions`;
+    await load();
+  } catch (e) {
+    st.textContent = 'Error: ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
 
 function render(s, q, tip, list, txn) {
   const mb = (s.bytes / 1e6).toFixed(s.bytes >= 1e7 ? 0 : 1);
@@ -118,6 +173,7 @@ async function load() {
   const tip = await tipHeight();                        // then fill in the chain height
   if (tip != null) render(s, await cache.quota(), tip, list, txn);
 }
+$('grow').onclick = grow;
 load();
 </script>
 </body>
