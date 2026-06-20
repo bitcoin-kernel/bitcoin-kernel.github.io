@@ -21,6 +21,14 @@ export class CacheSource {
   }
 }
 
+// Peers in the WebRTC mesh, between cache and explorer in the registry. The mesh
+// returns { bytes, from:'a peer' } or null; the caller verifies by hash, so an
+// untrusted peer cannot pass off a bad block.
+export class PeerSource {
+  constructor(mesh) { this.mesh = mesh; this.name = 'peer'; }
+  async getBlock(hash) { return this.mesh ? this.mesh.getBlock(hash) : null; }
+}
+
 export class ExplorerSource {
   constructor(bases) { this.bases = bases; this.name = 'explorer'; this.host = bases[0].replace('https://', ''); }
   async _res(path) {

@@ -34,6 +34,10 @@
   button:disabled{opacity:.55;cursor:default}
   .controls{display:flex;justify-content:center;margin:1.4rem 0 0}
   .gstat{text-align:center;margin:.7rem 0 0;font:.85rem var(--mono);color:var(--mut);min-height:1.2em}
+  .peering{display:flex;flex-wrap:wrap;gap:.6rem;justify-content:center;align-items:center;margin:1rem 0 0}
+  .ptoggle{font-size:.9rem;color:var(--fg);display:flex;align-items:center;gap:.4rem;cursor:pointer}.ptoggle input{accent-color:var(--ac);cursor:pointer}
+  .tinput{font:.8rem var(--mono);border:1px solid var(--bd);border-radius:8px;padding:.45rem .6rem;width:18rem;max-width:70vw;color:var(--fg)}.tinput:focus{outline:none;border-color:var(--ac)}
+  .pstat{width:100%;text-align:center;font:.8rem var(--mono);color:var(--mut);min-height:1.1em}
 
   #card{margin:1.6rem 0 0;border:1px solid var(--bd);border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(16,18,29,.06)}
   .hero2{padding:1.7rem 1.4rem 1.4rem;text-align:center;background:linear-gradient(180deg,#fff7ee,#fff);border-bottom:1px solid var(--bd)}
@@ -77,18 +81,24 @@
   <p class="sub">The slice of the Bitcoin chain stored on this device. Each block was fetched once, verified by the engine, and kept here so it never has to be fetched again. As bitcoin-kernel grows toward a shared mesh, this is what your node can serve to others.</p>
   <div class="controls"><button id="grow" class="primary">＋ Grow your node</button></div>
   <div id="gstat" class="gstat"></div>
+  <div class="peering">
+    <label class="ptoggle"><input type="checkbox" id="peer"> Peer with others</label>
+    <input id="tracker" class="tinput" placeholder="wss://your-tracker/.webrtc" spellcheck="false">
+    <div id="peerstat" class="pstat"></div>
+  </div>
 </div></header>
 
 <div class="wrap">
   <div id="card"></div>
-  <p class="note"><b>Where this is going.</b> Today each browser keeps its own small cache. Next, browsers that hold a block can serve it to each other directly, so the chain is held by the swarm rather than one explorer. A stats page like this is how a node knows what it can offer the mesh. Storage is shared with the browser and bounded; old blocks are dropped as new ones arrive.</p>
+  <p class="note"><b>Peering (experimental).</b> Turn on "Peer with others" and your browser joins a swarm on a tracker you provide and serves the blocks it holds to other peers directly — the chain held by the swarm, not one explorer. There is no default tracker; bring your own (a JSS <code>/.webrtc</code> endpoint), and the <code>?tracker=</code> link is the invitation — share it and whoever opens it joins your swarm. Every block is still verified by hash on arrival, so a peer can never hand you a bad one. Storage is shared with the browser and bounded; old blocks drop as new ones arrive.</p>
 </div>
 
 <footer>An independent JavaScript implementation. <a href="./index.html">bitcoin-kernel</a></footer>
 
 <script type="module">
 import { cache } from './cache.js';
-import { Sources, CacheSource, ExplorerSource } from './sources.js';
+import { Sources, CacheSource, ExplorerSource, PeerSource } from './sources.js';
+import { Mesh, swarmHash } from './mesh.js';
 import { Codec } from './engine/codec/codec.js';
 import { BlockEngine } from './engine/codec/blocks.js';
 import { bytesToHex } from './engine/codec/hash.js';
@@ -102,7 +112,48 @@ const $ = (id) => document.getElementById(id);
 const fmt = (n) => Number(n).toLocaleString();
 const codec = new Codec(core, proof);
 const be = BlockEngine.fromSchemas(codec, chain, validate, script, 'btc:mainnet');
-const sources = new Sources([new CacheSource(cache), new ExplorerSource(['https://mempool.space', 'https://blockstream.info'])]);
+const EXPLORERS = ['https://mempool.space', 'https://blockstream.info'];
+let mesh = null;                                  // active when peering is on
+let sources = new Sources([new CacheSource(cache), new ExplorerSource(EXPLORERS)]);
+function rebuildSources() {                        // cache -> [peers] -> explorer
+  const list = [new CacheSource(cache)];
+  if (mesh) list.push(new PeerSource(mesh));
+  list.push(new ExplorerSource(EXPLORERS));
+  sources = new Sources(list);
+}
+
+// --- peering (BYO tracker, no default hard-coded) ---
+const SWARM_LABEL = 'bitcoin-kernel:mainnet';     // a label, not infra — same swarm = same peers
+const TRACKER_KEY = 'bk:tracker';
+const host = (u) => { try { return new URL(u).host; } catch { return u; } };
+function savedTracker() {
+  const q = new URLSearchParams(location.search).get('tracker');
+  return (q || localStorage.getItem(TRACKER_KEY) || '').trim();
+}
+function peerStat(s) {
+  const el = $('peerstat'); if (!el) return;
+  if (!mesh) { el.textContent = ''; return; }
+  el.innerHTML = s && s.connected
+    ? `peering via <b>${host($('tracker').value)}</b> &middot; <b style="color:var(--good)">${s.peers}</b> peer${s.peers === 1 ? '' : 's'} &middot; <a id="invite" href="#">copy invite link</a>`
+    : `connecting to <b>${host($('tracker').value)}</b>…`;
+  const inv = $('invite');
+  if (inv) inv.onclick = (e) => { e.preventDefault(); const link = location.origin + location.pathname + '?tracker=' + encodeURIComponent($('tracker').value); navigator.clipboard.writeText(link).then(() => { inv.textContent = 'invite link copied'; }); };
+}
+async function setPeering(on) {
+  const url = ($('tracker').value || savedTracker()).trim();
+  if (on) {
+    if (!/^wss?:\/\//.test(url)) { $('peerstat').textContent = 'enter a wss:// tracker URL first'; $('peer').checked = false; return; }
+    $('tracker').value = url; localStorage.setItem(TRACKER_KEY, url); localStorage.setItem('bk:peering', '1');
+    await cache.init();
+    const swarm = await swarmHash(SWARM_LABEL);
+    mesh = new Mesh({ tracker: url, swarm, serve: (h) => cache.get(h), onstatus: peerStat });
+    mesh.start(); rebuildSources(); peerStat(mesh.status());
+  } else {
+    localStorage.setItem('bk:peering', '0');
+    if (mesh) { mesh.stop(); mesh = null; }
+    rebuildSources(); peerStat(null);
+  }
+}
 const tipHeight = () => sources.tipHeight().catch(() => null);
 
 // Grow your node: fetch the highest block within the recent window that we don't
@@ -135,7 +186,8 @@ async function grow() {
     await cache.put(hash, target, got.bytes);
     await cache.markVerified(hash);
     await cache.indexBlock(target, txids);
-    st.innerHTML = `<b style="color:var(--good)">✓ verified &amp; added block ${fmt(target)}</b> &middot; ${fmt(block.transactions.length)} transactions`;
+    const via = got.from === 'a peer' ? ' &middot; <b style="color:var(--ac)">⚡ from a peer</b>' : '';
+    st.innerHTML = `<b style="color:var(--good)">✓ verified &amp; added block ${fmt(target)}</b> &middot; ${fmt(block.transactions.length)} transactions${via}`;
     await load();
   } catch (e) {
     st.textContent = 'Error: ' + e.message;
@@ -201,6 +253,16 @@ async function load() {
   if (tip != null) render(s, await cache.quota(), tip, list, txn, max, avg);
 }
 $('grow').onclick = grow;
+$('peer').onchange = () => setPeering($('peer').checked);
+
+// Prefill the tracker (from ?tracker= or the saved one). A shared ?tracker= link
+// is an explicit invitation, so opening one auto-enables peering; a cold visit
+// stays off until you toggle it.
+$('tracker').value = savedTracker();
+const invited = new URLSearchParams(location.search).has('tracker');
+if (savedTracker() && (invited || localStorage.getItem('bk:peering') === '1')) {
+  $('peer').checked = true; setPeering(true);
+}
 load();
 </script>
 </body>
