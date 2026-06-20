@@ -75,7 +75,7 @@ await writeFile(here('engine/package.json'), JSON.stringify({
   files: ['index.js', 'codec/', 'schema/'],
   sideEffects: false,
   keywords: ['bitcoin', 'consensus', 'validation', 'script', 'esm', 'browser'],
-  license: 'MIT',
+  license: 'AGPL-3.0-or-later',
   repository: { type: 'git', url: 'git+https://github.com/bitcoin-kernel/bitcoin-kernel.github.io.git' },
   homepage: 'https://bitcoin-kernel.com/',
 }, null, 2) + '\n');
@@ -83,6 +83,7 @@ await writeFile(here('engine/package.json'), JSON.stringify({
 const VERSION = JSON.parse(await readFile(src('package.json'))).version;
 const CORE_TESTS = 'https://github.com/bitcoin/bitcoin/blob/master/src/test/data/script_tests.json';
 const ENGINE_REPO = 'https://github.com/bitcoin-desktop/schema';
+const REPO = 'https://github.com/bitcoin-kernel/bitcoin-kernel.github.io';
 
 // --- normative rules, extracted from the source-of-truth ruleset (for spec.html) ---
 const validate = JSON.parse(await readFile(src('schema/validate.jsonld')));
@@ -449,7 +450,7 @@ const html = `<!doctype html>
   <a href="./random.html">Verify a block</a>
   <a href="./cache.html">Your node</a>
   <a href="./spec.html">Specification</a>
-  <a href="${ENGINE_REPO}">Source ↗</a>
+  <a href="${REPO}">Source ↗</a>
 </div></nav>
 
 <div class="wrap"><p class="note"><b>Note:</b> An independent implementation of the Bitcoin kernel concept, a standalone consensus engine separated from wallet and networking, written in JavaScript for browsers and phones. Not affiliated with Bitcoin Core's <a href="https://thecharlatan.ch/Kernel/">libbitcoinkernel</a> and shares none of its code. For learning and light-client use, not a substitute for a full node.</p></div>
@@ -490,7 +491,7 @@ const html = `<!doctype html>
     <a href="https://github.com/bitcoin-kernel/bitcoin-kernel.github.io">This page's source</a>
     <a href="./engine/codec/interpreter.js">The code that runs the tests</a>
     <a href="${CORE_TESTS}">Bitcoin Core's script vectors</a>
-    <a href="${ENGINE_REPO}">bitcoin-kernel</a>
+    <a href="${REPO}">bitcoin-kernel</a>
   </div>
   <p class="fnote">Everything runs in your browser with no external calls. The vectors and the code are copied into this repository (v${VERSION}); nothing is fetched at runtime.</p>
 </div></footer>
@@ -585,7 +586,7 @@ const spec = `<!doctype html>
   <a href="./random.html">Verify a block</a>
   <a href="./cache.html">Your node</a>
   <a href="./spec.html" class="on">Specification</a>
-  <a href="${ENGINE_REPO}">Source ↗</a>
+  <a href="${REPO}">Source ↗</a>
 </div></nav>
 <main>
   <header class="doc">
@@ -654,7 +655,7 @@ const spec = `<!doctype html>
   </ul>
 </main>
 <footer><div style="max-width:860px;margin:0 auto;padding:0 1.5rem">
-  Generated from <a href="./engine/schema/validate.jsonld">validate.jsonld</a> (engine v${VERSION}). Independent community project, not affiliated with Bitcoin Core. <a href="./index.html">Test suite</a> · <a href="${ENGINE_REPO}">Source</a>
+  Generated from <a href="./engine/schema/validate.jsonld">validate.jsonld</a> (engine v${VERSION}). Independent community project, not affiliated with Bitcoin Core. <a href="./index.html">Test suite</a> · <a href="${REPO}">Source</a>
 </div></footer>
 </body>
 </html>

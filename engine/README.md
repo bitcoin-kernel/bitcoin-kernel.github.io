@@ -52,4 +52,4 @@ import { ScriptInterpreter, HeaderEngine, SpvEngine, verifyEcdsa } from 'bitcoin
   machine-readable ruleset, so the spec and the code cannot drift apart.
 - Independent community project, not affiliated with Bitcoin Core.
 
-MIT licensed.
+Licensed under the GNU AGPL v3 (AGPL-3.0-or-later).
