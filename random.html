@@ -295,8 +295,8 @@ function render(r) {
     </div>
     <div class="seclab">Performance, in your browser</div>
     <div class="stats s-perf">
-      <div class="stat"><div class="n"><span class="cu" data-c="${Math.round(r.fetchMs)}">0</span>${u('ms')}</div><div class="l">Fetch</div></div>
-      <div class="stat"><div class="n">${mbps}${u('MB/s')}</div><div class="l">Download</div></div>
+      <div class="stat"><div class="n"${r.fromCache ? ' style="color:var(--good)"' : ''}><span class="cu" data-c="${Math.round(r.fetchMs)}">0</span>${u('ms')}</div><div class="l">Fetch${r.fromCache ? ' <span style="color:var(--good);font-weight:700">⚡ cached</span>' : ''}</div></div>
+      <div class="stat"><div class="n">${r.fromCache ? '—' : mbps + u('MB/s')}</div><div class="l">${r.fromCache ? 'No download' : 'Download'}</div></div>
       <div class="stat"><div class="n"><span class="cu" data-c="${Math.round(r.decodeMs)}">0</span>${u('ms')}</div><div class="l">Decode</div></div>
       <div class="stat"><div class="n"><span class="cu" data-c="${Math.round(r.verifyMs)}">0</span>${u('ms')}</div><div class="l">Verify</div></div>
       <div class="stat"><div class="n"><span class="cu" data-c="${txps}">0</span>${u('tx/s')}</div><div class="l">Throughput</div></div>
