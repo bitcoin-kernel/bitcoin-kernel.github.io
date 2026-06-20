@@ -92,9 +92,10 @@
 
 <header class="hero"><div class="wrap">
   <h1>Verify a Bitcoin block.</h1>
-  <p class="sub">Pick a random block, or type a height. It is fetched live and its proof of work, merkle root and structure are checked right here in your browser. No server. The validator is the page.</p>
+  <p class="sub">The latest block, a random one, or any height you type. It is fetched live and its proof of work, merkle root and structure are checked right here in your browser. No server. The validator is the page.</p>
   <div class="controls">
-    <button id="rand" class="primary">🎲 Random block</button>
+    <button id="tip" class="primary">⛓ Latest block</button>
+    <button id="rand">🎲 Random block</button>
     <input id="height" type="number" min="0" placeholder="block height" inputmode="numeric">
     <button id="go">Verify</button>
   </div>
@@ -129,6 +130,7 @@ const se = ScriptEngine.fromSchemas(script, chain);
 
 const PROVIDERS = ['https://mempool.space', 'https://blockstream.info'];
 const $ = (id) => document.getElementById(id);
+const busy = (b) => { $('rand').disabled = $('go').disabled = $('tip').disabled = b; };
 const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 const fmt = (n) => Number(n).toLocaleString();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -161,7 +163,7 @@ function countUp(el, value) {
 }
 
 async function verify(height, push = true) {
-  $('rand').disabled = $('go').disabled = true;
+  busy(true);
   $('card').classList.remove('show'); $('card').style.display = 'none';
   $('err').textContent = '';
   $('live').classList.add('on'); $('bar').classList.remove('on'); $('barfill').style.width = '0'; $('live-meta').textContent = '';
@@ -223,7 +225,7 @@ async function verify(height, push = true) {
     $('live').classList.remove('on');
     $('err').textContent = 'Error: ' + e.message;
   } finally {
-    $('rand').disabled = $('go').disabled = false;
+    busy(false);
   }
 }
 
@@ -288,18 +290,18 @@ function render(r) {
 }
 
 async function randomBlock() {
-  $('rand').disabled = $('go').disabled = true;
+  busy(true);
   $('err').textContent = ''; $('live').classList.add('on'); $('bar').classList.remove('on'); $('live-meta').textContent = '';
   step('picking a random block');
   try {
     if (TIP == null) TIP = Number((await (await api('/api/blocks/tip/height')).text()).trim());
     verify(Math.floor(Math.random() * (TIP + 1)));
-  } catch (e) { $('live').classList.remove('on'); $('err').textContent = 'Error: ' + e.message; $('rand').disabled = $('go').disabled = false; }
+  } catch (e) { $('live').classList.remove('on'); $('err').textContent = 'Error: ' + e.message; busy(false); }
 }
 
 // --- transaction detail + real engine verification (fetches only on click) ---
 async function showTx(txid, push = true) {
-  $('rand').disabled = $('go').disabled = true;
+  busy(true);
   $('card').classList.remove('show'); $('card').style.display = 'none';
   $('err').textContent = '';
   $('live').classList.add('on'); $('bar').classList.remove('on'); $('barfill').style.width = '0'; $('live-meta').textContent = '';
@@ -329,7 +331,7 @@ async function showTx(txid, push = true) {
     $('live').classList.remove('on');
     $('err').textContent = 'Error: ' + e.message;
   } finally {
-    $('rand').disabled = $('go').disabled = false;
+    busy(false);
   }
 }
 
@@ -393,10 +395,21 @@ function route() {
   if (q.get('tx')) return showTx(q.get('tx'), false);
   const h = q.get('height');
   if (h != null && h !== '') return verify(+h, false);
-  return randomBlock();
+  return latestBlock();
 }
 window.addEventListener('popstate', route);
 
+async function latestBlock() {
+  busy(true);
+  $('err').textContent = ''; $('live').classList.add('on'); $('bar').classList.remove('on'); $('live-meta').textContent = '';
+  step('finding the chain tip');
+  try {
+    TIP = Number((await (await api('/api/blocks/tip/height')).text()).trim());
+    verify(TIP);
+  } catch (e) { $('live').classList.remove('on'); $('err').textContent = 'Error: ' + e.message; busy(false); }
+}
+
+$('tip').onclick = latestBlock;
 $('rand').onclick = randomBlock;
 $('go').onclick = () => { const h = parseInt($('height').value, 10); if (Number.isFinite(h) && h >= 0) verify(h); };
 $('height').onkeydown = (e) => { if (e.key === 'Enter') $('go').click(); };
