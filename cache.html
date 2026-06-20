@@ -79,7 +79,7 @@
 <header class="hero"><div class="wrap">
   <h1>Your node.</h1>
   <p class="sub">The slice of the Bitcoin chain stored on this device. Each block was fetched once, verified by the engine, and kept here so it never has to be fetched again. As bitcoin-kernel grows toward a shared mesh, this is what your node can serve to others.</p>
-  <div class="controls"><button id="grow" class="primary">＋ Grow your node</button><label class="ptoggle"><input type="checkbox" id="auto"> Auto-grow</label></div>
+  <div class="controls"><button id="grow" class="primary">＋ Grow your node</button><label class="ptoggle"><input type="checkbox" id="auto"> Auto-grow</label><label class="ptoggle"><input type="checkbox" id="dagtoggle"> Verify DAG</label></div>
   <div id="gstat" class="gstat"></div>
   <div class="peering">
     <label class="ptoggle"><input type="checkbox" id="peer"> Peer with others</label>
@@ -244,10 +244,17 @@ let dag = null;          // last completed result, painted into the stats
 let dagRun = 0;          // generation token; a newer run supersedes older ones
 let dagBusy = false;
 let dagTimer = null;
+let dagEnabled = localStorage.getItem('bk:dagverify') === '1';   // off by default — a full-window re-verify is heavy
 // Debounced: load() fires every ~1s while auto-growing; wait for the window to
 // settle before the (full-window) re-verify, so we run once per quiet period.
-function scheduleDag(ms = 4000) { clearTimeout(dagTimer); dagTimer = setTimeout(runDag, ms); }
+function scheduleDag(ms = 4000) { if (!dagEnabled) return; clearTimeout(dagTimer); dagTimer = setTimeout(runDag, ms); }
+function setDag(on) {
+  dagEnabled = on; localStorage.setItem('bk:dagverify', on ? '1' : '0');
+  if (on) scheduleDag(0);                                        // run now
+  else { clearTimeout(dagTimer); dagRun++; dag = null; paintDag(); }  // bump generation to bail any in-flight run
+}
 async function runDag() {
+  if (!dagEnabled) return;
   if (dagBusy) { dagRun++; return; }   // signal the in-flight run to bail; it reschedules
   const stats = cache.stats();
   if (stats.n < 2) { dag = null; paintDag(); return; }   // need overlap for in-window spends
@@ -270,9 +277,14 @@ async function runDag() {
 function paintDag() {
   const card = $('card'); if (!card) return;
   const nEl = $('dagn'), capEl = $('dagcap');
-  if (nEl) nEl.textContent = dag ? fmt(dag.verified) : '—';
+  if (!dagEnabled) {
+    if (nEl) nEl.textContent = '—';
+    if (capEl) capEl.innerHTML = `<span style="color:var(--mut)">DAG verification off &middot; toggle <b>Verify DAG</b> to script+sig-check the in-window transaction graph</span>`;
+    return;
+  }
+  if (nEl) nEl.textContent = dag ? fmt(dag.verified) : '…';
   if (!capEl) return;
-  if (!dag) { capEl.textContent = ''; return; }
+  if (!dag) { capEl.innerHTML = `<span style="color:var(--mut)">verifying the in-window DAG…</span>`; return; }
   if (dag.failed > 0) {
     capEl.innerHTML = `<b style="color:var(--bad)">✗ ${fmt(dag.failed)} input${dag.failed === 1 ? '' : 's'} failed verification</b> — at block ${fmt(dag.failures[0].height)}, please report`;
     return;
@@ -346,6 +358,7 @@ async function load(tipHint) {
 }
 $('grow').onclick = async () => { await growOne(); load(); };
 $('auto').onchange = () => setAuto($('auto').checked);
+$('dagtoggle').onchange = () => setDag($('dagtoggle').checked);
 $('peer').onchange = () => setPeering($('peer').checked);
 
 // Prefill the tracker (from ?tracker= or the saved one). A shared ?tracker= link
@@ -357,6 +370,7 @@ if (savedTracker() && (invited || localStorage.getItem('bk:peering') === '1')) {
   $('peer').checked = true; setPeering(true);
 }
 if (localStorage.getItem('bk:autogrow') === '1') { $('auto').checked = true; setAuto(true); }
+if (dagEnabled) $('dagtoggle').checked = true;   // persisted opt-in; load() will run it
 load();
 </script>
 </body>
