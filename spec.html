@@ -143,7 +143,7 @@
   <p>The script vectors are <a href="https://github.com/bitcoin/bitcoin/blob/master/src/test/data/script_tests.json">Bitcoin Core's own <code>script_tests.json</code></a>, used unmodified. The remaining vectors are real mainnet data, independently verifiable on any block explorer.</p>
 
   <h2 class="sec" id="implementations">6. Implementations</h2>
-  <p><strong>bitcoin-kernel</strong> is the reference implementation: a JavaScript library, with no runtime dependencies, that implements every rule in §4. The same code runs on a Node server and in a browser tab; the <a href="./index.html">demo</a> runs it client-side. The interpreter and engine are at <a href="./engine/codec/interpreter.js"><code>engine/codec/</code></a> and developed in the open at <a href="https://github.com/bitcoin-desktop/schema">github.com/bitcoin-desktop/schema</a>.</p>
+  <p><strong>bitcoin-kernel</strong> is the reference implementation: a JavaScript library, with no runtime dependencies, that implements every rule in §4. The same code runs on a Node server and in a browser tab; the <a href="./index.html">demo</a> runs it client-side. The interpreter and engine are at <a href="https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.2/packages/kernel/codec/interpreter.js"><code>engine/codec/</code></a> and developed in the open at <a href="https://github.com/bitcoin-desktop/schema">github.com/bitcoin-desktop/schema</a>.</p>
   <p>An implementation in any language conforms to this specification (§3) if it produces the expected verdict for every vector in §5. Reporting partial conformance (for example, the script rules only) is <span class="keywords">RECOMMENDED</span> where full conformance is not yet reached.</p>
 
   <h2 class="sec" id="references">7. References</h2>

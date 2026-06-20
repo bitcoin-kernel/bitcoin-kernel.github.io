@@ -14,7 +14,6 @@ const src = (p) => new URL(import.meta.resolve('@bitcoin-desktop/schema/' + p));
 const here = (p) => new URL(p, import.meta.url);
 await mkdir(here('engine/schema'), { recursive: true });
 await mkdir(here('engine/vectors'), { recursive: true });
-await cp(src('codec'), here('engine/codec'), { recursive: true });
 for (const f of ['core.jsonld', 'script.jsonld', 'chain.jsonld', 'proof.jsonld', 'validate.jsonld']) {
   await copyFile(src('schema/' + f), here('engine/schema/' + f));
 }
@@ -23,62 +22,6 @@ for (const f of ['script_tests.json', 'genesis-block.json', 'retarget-modern.jso
   await copyFile(src('test/vectors/' + f), here('engine/vectors/' + f));
 }
 
-// --- make engine/ an importable ESM library: the `bitcoin-kernel` package ---
-// Bundle the JSON-LD schemas as JS modules so `import` works in the browser too
-// (no fetch, no JSON import attributes), then emit a barrel + factory + manifest.
-for (const k of ['core', 'proof', 'script', 'chain', 'validate']) {
-  const data = (await readFile(here('engine/schema/' + k + '.jsonld'), 'utf8')).trim();
-  await writeFile(here('engine/schema/' + k + '.js'), 'export default ' + data + ';\n');
-}
-await writeFile(here('engine/index.js'), `// bitcoin-kernel: an independent, zero-dependency implementation of Bitcoin's
-// consensus rules. Pure ESM; the same code runs in Node and in the browser.
-import { Codec } from './codec/codec.js';
-import { ScriptEngine } from './codec/script.js';
-import { ScriptInterpreter } from './codec/interpreter.js';
-import { HeaderEngine } from './codec/headers.js';
-import { BlockEngine } from './codec/blocks.js';
-import { SpvEngine } from './codec/spv.js';
-import core from './schema/core.js';
-import proof from './schema/proof.js';
-import script from './schema/script.js';
-import chain from './schema/chain.js';
-import validate from './schema/validate.js';
-
-export { Codec, ScriptEngine, ScriptInterpreter, HeaderEngine, BlockEngine, SpvEngine };
-export * from './codec/hash.js';
-export * from './codec/secp256k1.js';
-
-export const schemas = { core, proof, script, chain, validate };
-
-// Build a fully wired set of engines from the bundled schemas.
-export function createKernel() {
-  const codec = new Codec(core, proof);
-  const scriptEngine = ScriptEngine.fromSchemas(script, chain);
-  const limits = script['@graph'].find((n) => n['@id'] === 'btc:scriptLimits');
-  const interpreter = new ScriptInterpreter(codec, scriptEngine, limits);
-  const headers = HeaderEngine.fromSchemas(codec, chain, validate);
-  const blocks = BlockEngine.fromSchemas(codec, chain, validate, script);
-  const spv = SpvEngine.fromSchemas(codec, validate);
-  return { codec, script: scriptEngine, interpreter, headers, blocks, spv, schemas };
-}
-
-export default createKernel;
-`);
-await writeFile(here('engine/package.json'), JSON.stringify({
-  name: 'bitcoin-kernel',
-  version: '0.0.1',
-  description: "An independent, zero-dependency implementation of Bitcoin's consensus rules. Runs in Node and the browser.",
-  type: 'module',
-  main: './index.js',
-  module: './index.js',
-  exports: { '.': './index.js', './codec/*': './codec/*', './schema/*': './schema/*' },
-  files: ['index.js', 'codec/', 'schema/'],
-  sideEffects: false,
-  keywords: ['bitcoin', 'consensus', 'validation', 'script', 'esm', 'browser'],
-  license: 'AGPL-3.0-or-later',
-  repository: { type: 'git', url: 'git+https://github.com/bitcoin-kernel/bitcoin-kernel.github.io.git' },
-  homepage: 'https://bitcoin-kernel.com/',
-}, null, 2) + '\n');
 
 const VERSION = JSON.parse(await readFile(src('package.json'))).version;
 const CORE_TESTS = 'https://github.com/bitcoin/bitcoin/blob/master/src/test/data/script_tests.json';
@@ -123,12 +66,12 @@ const C = { accent: '#e8830c', accent2: '#0969da', good: '#1a7f37', bad: '#cf222
 const suiteTab = ([k, name]) => `<button class="tab" data-k="${k}"><span class="tn">${esc(name)}</span><span class="tc" id="tc-${k}">…</span></button>`;
 
 const APP = String.raw`
-import { Codec } from './engine/codec/codec.js';
-import { ScriptEngine } from './engine/codec/script.js';
-import { ScriptInterpreter } from './engine/codec/interpreter.js';
-import { HeaderEngine } from './engine/codec/headers.js';
-import { BlockEngine } from './engine/codec/blocks.js';
-import { SpvEngine } from './engine/codec/spv.js';
+import { Codec } from 'https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.2/packages/kernel/codec/codec.js';
+import { ScriptEngine } from 'https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.2/packages/kernel/codec/script.js';
+import { ScriptInterpreter } from 'https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.2/packages/kernel/codec/interpreter.js';
+import { HeaderEngine } from 'https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.2/packages/kernel/codec/headers.js';
+import { BlockEngine } from 'https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.2/packages/kernel/codec/blocks.js';
+import { SpvEngine } from 'https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.2/packages/kernel/codec/spv.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
@@ -489,7 +432,7 @@ const html = `<!doctype html>
 <footer><div class="wrap">
   <div class="links">
     <a href="https://github.com/bitcoin-kernel/bitcoin-kernel.github.io">This page's source</a>
-    <a href="./engine/codec/interpreter.js">The code that runs the tests</a>
+    <a href="https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.2/packages/kernel/codec/interpreter.js">The code that runs the tests</a>
     <a href="${CORE_TESTS}">Bitcoin Core's script vectors</a>
     <a href="${REPO}">bitcoin-kernel</a>
   </div>
@@ -644,7 +587,7 @@ const spec = `<!doctype html>
   <p>The script vectors are <a href="${CORE_TESTS}">Bitcoin Core's own <code>script_tests.json</code></a>, used unmodified. The remaining vectors are real mainnet data, independently verifiable on any block explorer.</p>
 
   <h2 class="sec" id="implementations">6. Implementations</h2>
-  <p><strong>bitcoin-kernel</strong> is the reference implementation: a JavaScript library, with no runtime dependencies, that implements every rule in §4. The same code runs on a Node server and in a browser tab; the <a href="./index.html">demo</a> runs it client-side. The interpreter and engine are at <a href="./engine/codec/interpreter.js"><code>engine/codec/</code></a> and developed in the open at <a href="${ENGINE_REPO}">${ENGINE_REPO.replace('https://', '')}</a>.</p>
+  <p><strong>bitcoin-kernel</strong> is the reference implementation: a JavaScript library, with no runtime dependencies, that implements every rule in §4. The same code runs on a Node server and in a browser tab; the <a href="./index.html">demo</a> runs it client-side. The interpreter and engine are at <a href="https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.2/packages/kernel/codec/interpreter.js"><code>engine/codec/</code></a> and developed in the open at <a href="${ENGINE_REPO}">${ENGINE_REPO.replace('https://', '')}</a>.</p>
   <p>An implementation in any language conforms to this specification (§3) if it produces the expected verdict for every vector in §5. Reporting partial conformance (for example, the script rules only) is <span class="keywords">RECOMMENDED</span> where full conformance is not yet reached.</p>
 
   <h2 class="sec" id="references">7. References</h2>

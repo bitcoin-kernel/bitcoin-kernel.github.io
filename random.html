@@ -123,18 +123,18 @@
 <footer>An independent JavaScript implementation. Block data from <span id="prov">mempool.space</span><span id="cstat"></span>. <a href="./index.html">bitcoin-kernel</a></footer>
 
 <script type="module">
-import { Codec } from './engine/codec/codec.js';
-import { BlockEngine } from './engine/codec/blocks.js';
-import { ScriptEngine } from './engine/codec/script.js';
-import core from './engine/schema/core.js';
-import proof from './engine/schema/proof.js';
-import chain from './engine/schema/chain.js';
-import validate from './engine/schema/validate.js';
-import script from './engine/schema/script.js';
-import { cache } from 'https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.1/packages/web/cache.js';
-import { Sources, CacheSource, ExplorerSource } from 'https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.1/packages/web/sources.js';
-import { setVerifyBackend } from './engine/codec/secp256k1.js';
-import { loadSecpWasm, wasmBackend } from './engine/wasm/secp-wasm.js';
+import { Codec } from 'https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.2/packages/kernel/codec/codec.js';
+import { BlockEngine } from 'https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.2/packages/kernel/codec/blocks.js';
+import { ScriptEngine } from 'https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.2/packages/kernel/codec/script.js';
+import core from 'https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.2/packages/kernel/schema/core.js';
+import proof from 'https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.2/packages/kernel/schema/proof.js';
+import chain from 'https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.2/packages/kernel/schema/chain.js';
+import validate from 'https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.2/packages/kernel/schema/validate.js';
+import script from 'https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.2/packages/kernel/schema/script.js';
+import { cache } from 'https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.2/packages/web/cache.js';
+import { Sources, CacheSource, ExplorerSource } from 'https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.2/packages/web/sources.js';
+import { setVerifyBackend } from 'https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.2/packages/kernel/codec/secp256k1.js';
+import { loadSecpWasm, wasmBackend } from 'https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.2/packages/kernel/wasm/secp-wasm.js';
 
 const codec = new Codec(core, proof);
 const be = BlockEngine.fromSchemas(codec, chain, validate, script, 'btc:mainnet');
