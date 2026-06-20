@@ -237,9 +237,7 @@ async function verify(height, push = true) {
     const tF = performance.now();
     await cache.init();
     let bytes, hash, received, dlMs = 0, fromCache = false;
-    // near-tip heights can reorg, so don't trust a cached height->hash there
-    const nearTip = TIP != null && height > TIP - 6;
-    const ch = nearTip ? null : cache.hashForHeight(height);
+    const ch = cache.hashForHeight(height); // serve any height we've already cached
     const cached = ch ? await cache.get(ch) : null;
     if (cached) {
       step('reading block from your device');
