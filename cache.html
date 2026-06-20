@@ -104,6 +104,7 @@ import { BlockEngine } from './engine/codec/blocks.js';
 import { bytesToHex } from './engine/codec/hash.js';
 import { setVerifyBackend } from './engine/codec/secp256k1.js';
 import { loadSecpWasm, wasmBackend } from './engine/wasm/secp-wasm.js';
+import { verifyDag } from './dag.js';
 import core from './engine/schema/core.js';
 import proof from './engine/schema/proof.js';
 import chain from './engine/schema/chain.js';
@@ -114,6 +115,7 @@ const $ = (id) => document.getElementById(id);
 const fmt = (n) => Number(n).toLocaleString();
 const codec = new Codec(core, proof);
 const be = BlockEngine.fromSchemas(codec, chain, validate, script, 'btc:mainnet');
+const wasmReady = loadSecpWasm().then(() => setVerifyBackend(wasmBackend)).catch(() => {}); // real secp for DAG script+sig checks
 const EXPLORERS = ['https://mempool.space', 'https://blockstream.info'];
 let mesh = null;                                  // active when peering is on
 let sources = new Sources([new CacheSource(cache), new ExplorerSource(EXPLORERS)]);
@@ -235,6 +237,54 @@ async function autoLoop() {
   }
 }
 
+// --- DAG verification: re-check the resolvable slice in the background ---
+// Coverage and counts climb as the window deepens; runs after each load/grow.
+// Re-entrant-safe: a fresh run cancels the one in flight (the window changed).
+let dag = null;          // last completed result, painted into the stats
+let dagRun = 0;          // generation token; a newer run supersedes older ones
+let dagBusy = false;
+let dagTimer = null;
+// Debounced: load() fires every ~1s while auto-growing; wait for the window to
+// settle before the (full-window) re-verify, so we run once per quiet period.
+function scheduleDag(ms = 4000) { clearTimeout(dagTimer); dagTimer = setTimeout(runDag, ms); }
+async function runDag() {
+  if (dagBusy) { dagRun++; return; }   // signal the in-flight run to bail; it reschedules
+  const stats = cache.stats();
+  if (stats.n < 2) { dag = null; paintDag(); return; }   // need overlap for in-window spends
+  dagBusy = true;
+  const gen = ++dagRun;
+  try {
+    await wasmReady;
+    const res = await verifyDag({
+      cache, codec, be,
+      shouldStop: () => gen !== dagRun,
+      onProgress: (p) => { if (gen === dagRun && p.phase === 'verify') { dag = { ...p, partial: true }; paintDag(); } },
+    });
+    if (res && gen === dagRun) { dag = res; paintDag(); }
+  } catch {}
+  finally {
+    dagBusy = false;
+    if (dagRun !== gen) runDag();   // window changed mid-run — go again
+  }
+}
+function paintDag() {
+  const card = $('card'); if (!card) return;
+  const nEl = $('dagn'), capEl = $('dagcap');
+  if (nEl) nEl.textContent = dag ? fmt(dag.verified) : '—';
+  if (!capEl) return;
+  if (!dag) { capEl.textContent = ''; return; }
+  if (dag.failed > 0) {
+    capEl.innerHTML = `<b style="color:var(--bad)">✗ ${fmt(dag.failed)} input${dag.failed === 1 ? '' : 's'} failed verification</b> — at block ${fmt(dag.failures[0].height)}, please report`;
+    return;
+  }
+  const pct = dag.resolvable ? Math.round(dag.verified / dag.resolvable * 100) : 0;
+  const cov = dag.inputs ? (dag.resolvable / dag.inputs * 100) : 0;
+  const covTxt = cov >= 1 ? cov.toFixed(0) : cov.toFixed(1);
+  capEl.innerHTML = `${dag.partial ? 'verifying… ' : ''}<b style="color:var(--good)">${fmt(dag.verified)}</b> input${dag.verified === 1 ? '' : 's'} script+sig verified `
+    + `&middot; ${covTxt}% of this window's ${fmt(dag.inputs)} inputs spend coins also in the window`
+    + (dag.skipped ? ` &middot; ${fmt(dag.skipped)} skipped (unknown/taproot-partial)` : '');
+}
+
 function render(s, q, tip, list, txn, max, avg) {
   const mb = (s.bytes / 1e6).toFixed(s.bytes >= 1e7 ? 0 : 1);
   const winPct = Math.min(100, s.n / cache.CAP * 100);
@@ -260,8 +310,10 @@ function render(s, q, tip, list, txn, max, avg) {
       <div class="stat"><div class="n g">${fmt(s.verified)}</div><div class="l">Verified</div></div>
       <div class="stat"><div class="n">${mb}<span style="font-size:.7rem;color:var(--mut);font-weight:400"> MB</span></div><div class="l">On device</div></div>
       <div class="stat"><div class="n b">${fmt(txn || 0)}</div><div class="l">Tx indexed</div></div>
+      <div class="stat"><div class="n g" id="dagn">—</div><div class="l">DAG inputs ✓</div></div>
       <div class="stat"><div class="n b">${tip ? fmt(tip) : '—'}</div><div class="l">Chain height</div></div>
     </div>
+    <div id="dagcap" class="gstat" style="padding:.55rem 1.4rem 0;text-align:left"></div>
     <div class="seclab">Node size</div>
     <div class="setting">
       <div class="srow"><span>Keep up to <b id="capval">${fmt(cap)}</b> blocks</span><span class="smeta" id="capsize">≈ ${capGB} GB</span></div>
@@ -271,6 +323,7 @@ function render(s, q, tip, list, txn, max, avg) {
     <div class="seclab"><span>Cached blocks</span>${list.length ? `<button id="clear" class="danger" style="font-size:.72rem;padding:.25rem .6rem">Clear cache</button>` : ''}</div>
     <div class="blocks">${rows}</div>`;
   requestAnimationFrame(() => { const f = $('winfill'); if (f) f.style.width = winPct + '%'; });
+  paintDag();   // re-apply the DAG result after every re-render
   const cb = $('clear');
   if (cb) cb.onclick = async () => { if (confirm('Remove all cached blocks from this device?')) { await cache.clear(); load(); } };
   const sl = $('capslider');
@@ -285,8 +338,9 @@ async function load(tipHint) {
   await cache.init();
   const s = cache.stats(), list = cache.entries(), txn = await cache.txCount();
   const avg = cache.avgBlockSize(), max = await cache.maxBlocks();
-  if (tipHint !== undefined) { render(s, await cache.quota(), tipHint, list, txn, max, avg); return; }
+  if (tipHint !== undefined) { render(s, await cache.quota(), tipHint, list, txn, max, avg); scheduleDag(); return; }
   render(s, await cache.quota(), null, list, txn, max, avg);  // paint instantly from local data
+  scheduleDag(1500);                                          // verify the DAG slice shortly after a manual load
   const tip = await tipHeight();                              // then fill in the chain height
   if (tip != null) render(s, await cache.quota(), tip, list, txn, max, avg);
 }
