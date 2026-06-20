@@ -96,15 +96,15 @@
 <footer>An independent JavaScript implementation. <a href="./index.html">bitcoin-kernel</a></footer>
 
 <script type="module">
-import { cache } from './cache.js';
-import { Sources, CacheSource, ExplorerSource, PeerSource } from './sources.js';
-import { Mesh, swarmHash } from './mesh.js';
+import { cache } from 'https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.1/packages/web/cache.js';
+import { Sources, CacheSource, ExplorerSource, PeerSource } from 'https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.1/packages/web/sources.js';
+import { Mesh, swarmHash } from 'https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.1/packages/web/mesh.js';
 import { Codec } from './engine/codec/codec.js';
 import { BlockEngine } from './engine/codec/blocks.js';
 import { bytesToHex } from './engine/codec/hash.js';
 import { setVerifyBackend } from './engine/codec/secp256k1.js';
 import { loadSecpWasm, wasmBackend } from './engine/wasm/secp-wasm.js';
-import { verifyDag } from './dag.js';
+import { verifyDag } from 'https://cdn.jsdelivr.net/gh/bitcoin-kernel/kernel@v0.0.1/packages/web/dag.js';
 import core from './engine/schema/core.js';
 import proof from './engine/schema/proof.js';
 import chain from './engine/schema/chain.js';
