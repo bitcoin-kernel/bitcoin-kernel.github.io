@@ -108,7 +108,7 @@
   </div>
   <p id="err"></p>
   <div id="card"></div>
-  <p class="note"><b>Phase 1:</b> proof of work, merkle root, witness commitment and block structure all live inside the block itself, so they verify with no extra data. Script execution and signature checks need the spending history (the prevouts), which is phase 2. A pass here means structurally sound, not that every signature was checked.</p>
+  <p class="note"><b>Two layers.</b> A block's proof of work, merkle root, witness commitment and structure all live inside the block itself, so they verify with no extra data. Scripts and signatures need the spending history (the prevouts), which isn't in the block &mdash; so <b>click any transaction</b> to fetch it and run its scripts and signatures through the engine for real, right here in your browser. That is the full check, one transaction at a time.</p>
 </div>
 
 <footer>An independent JavaScript implementation. Block data from <span id="prov">mempool.space</span>. <a href="./index.html">bitcoin-kernel</a></footer>
@@ -297,7 +297,7 @@ async function randomBlock() {
   } catch (e) { $('live').classList.remove('on'); $('err').textContent = 'Error: ' + e.message; $('rand').disabled = $('go').disabled = false; }
 }
 
-// --- transaction detail: one fetch, only on click ---
+// --- transaction detail + real engine verification (fetches only on click) ---
 async function showTx(txid, push = true) {
   $('rand').disabled = $('go').disabled = true;
   $('card').classList.remove('show'); $('card').style.display = 'none';
@@ -306,8 +306,24 @@ async function showTx(txid, push = true) {
   step('fetching transaction');
   try {
     const tx = await (await api(`/api/tx/${txid}`)).json();
+    let ver = null;
+    try {
+      step('verifying scripts & signatures with the engine');
+      const hex = (await (await api(`/api/tx/${txid}/hex`)).text()).trim();
+      const etx = codec.decode('Transaction', hex);
+      // esplora inlines each prevout's scriptpubkey + value -> exactly what the interpreter needs
+      const prevouts = tx.vin.map((v) => v.is_coinbase ? null : { value: v.prevout.value, scriptPubKey: v.prevout.scriptpubkey });
+      const all = prevouts.every(Boolean) ? prevouts : null; // taproot sighash needs every prevout
+      const t0 = performance.now();
+      const res = tx.vin.map((v, i) => v.is_coinbase ? { coinbase: true } : be.interpreter.verifyInput(etx, i, prevouts[i], all));
+      const ms = performance.now() - t0;
+      const total = res.filter((r) => !r.coinbase).length;
+      const ok = res.filter((r) => r.ok === true).length;
+      const skipped = res.filter((r) => r.ok === null).length;
+      ver = { res, ms, total, ok, skipped, allOk: total > 0 && ok === total };
+    } catch (e) { ver = { error: e.message }; }
     $('live').classList.remove('on');
-    renderTx(tx);
+    renderTx(tx, ver);
     if (push) history.pushState({ tx: txid }, '', `?tx=${txid}`);
   } catch (e) {
     $('live').classList.remove('on');
@@ -317,17 +333,36 @@ async function showTx(txid, push = true) {
   }
 }
 
-function renderTx(tx) {
+function renderTx(tx, ver) {
   const st = tx.status || {};
   const inT = tx.vin.reduce((s, v) => s + (v.prevout ? v.prevout.value : 0), 0);
   const outT = tx.vout.reduce((s, v) => s + v.value, 0);
-  const vins = tx.vin.map((v) => {
+  const mark = (i) => {
+    const r = ver && ver.res ? ver.res[i] : null;
+    if (!r || r.coinbase) return '';
+    if (r.ok === true) return '<span class="ic g">✓</span> ';
+    if (r.ok === false) return '<span class="ic b">✗</span> ';
+    return '<span class="ic s">○</span> ';
+  };
+  const vins = tx.vin.map((v, i) => {
     if (v.is_coinbase) return `<div class="ior"><div class="top"><span class="amt">newly issued coins</span><span class="typ">coinbase</span></div></div>`;
     const p = v.prevout || {};
-    return `<div class="ior"><div class="top"><span class="amt">${btc(p.value || 0)} BTC</span><span class="typ">${esc(p.scriptpubkey_type || '')}</span></div>`
+    return `<div class="ior"><div class="top"><span class="amt">${mark(i)}${btc(p.value || 0)} BTC</span><span class="typ">${esc(p.scriptpubkey_type || '')}</span></div>`
       + `<div class="sub">from <a href="?tx=${v.txid}" data-tx="${v.txid}">${esc(v.txid.slice(0, 22))}…:${v.vout}</a>${p.scriptpubkey_address ? ' &middot; ' + esc(p.scriptpubkey_address) : ''}</div></div>`;
   }).join('');
   const vouts = tx.vout.map((o) => `<div class="ior"><div class="top"><span class="amt">${btc(o.value)} BTC</span><span class="typ">${esc(o.scriptpubkey_type || '')}</span></div>${o.scriptpubkey_address ? `<div class="sub">${esc(o.scriptpubkey_address)}</div>` : ''}</div>`).join('');
+  let vhero = '';
+  if (ver && ver.total > 0) {
+    vhero = `<div class="vhero ${ver.allOk ? '' : 'bad'}" style="padding:1.4rem 1.4rem 1.2rem">
+      <div class="vc" style="font-size:2.2rem"><span class="cu" data-c="${ver.ok}">0</span> <span style="font-size:1.2rem;letter-spacing:-1px">/ ${ver.total}</span></div>
+      <div class="sl">${ver.allOk ? 'inputs verified' : ver.ok + ' of ' + ver.total + ' inputs verified'}${ver.skipped ? ` &middot; ${ver.skipped} skipped` : ''}</div>
+      <div class="pct">${ver.allOk ? 'scripts &amp; signatures checked' : 'verification failed'}<span class="t"> &middot; in <b style="color:var(--good);font-weight:800">${ver.ms.toFixed(1)} ms</b> by the engine, in your browser</span></div>
+    </div>`;
+  } else if (ver && ver.error) {
+    vhero = `<div class="note" style="margin:0;border-radius:0;border-left:0;border-right:0;border-top:0">Could not run verification (${esc(ver.error)}); detail shown from the explorer.</div>`;
+  } else if (ver && ver.total === 0) {
+    vhero = `<div class="note" style="margin:0;border-radius:0;border-left:0;border-right:0;border-top:0">Coinbase transaction &mdash; newly issued coins, no inputs to verify.</div>`;
+  }
   $('card').innerHTML = `
     <div class="backlink">${st.block_height != null ? `&larr; <a href="?height=${st.block_height}" data-h="${st.block_height}">Block ${fmt(st.block_height)}</a>` : 'unconfirmed (in the mempool)'}</div>
     <div class="chead">
@@ -335,11 +370,13 @@ function renderTx(tx) {
       <div class="hash">${esc(tx.txid)}</div>
       <div class="meta">${tx.vin.length} in &middot; ${tx.vout.length} out &middot; ${fmt(tx.size)} bytes &middot; weight ${fmt(tx.weight)}${tx.fee != null ? ` &middot; fee ${fmt(tx.fee)} sat` : ''}</div>
     </div>
+    ${vhero}
     <div class="seclab">Inputs (${tx.vin.length})${inT ? ` &middot; ${btc(inT)} BTC` : ''}</div>
     <div class="io">${vins}</div>
     <div class="seclab">Outputs (${tx.vout.length}) &middot; ${btc(outT)} BTC</div>
     <div class="io">${vouts}</div>`;
   $('card').style.display = 'block'; $('card').classList.add('show');
+  $('card').querySelectorAll('.cu[data-c]').forEach((el) => countUp(el, +el.dataset.c));
 }
 
 // every click inside the card stays client-side: tx links fetch one tx, block links re-verify

@@ -53,6 +53,16 @@ const truthy = (bytes) => {
 const boolBytes = (b) => (b ? Uint8Array.of(1) : new Uint8Array(0));
 const eq = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
 
+// Bitcoin CompactSize (1/3/5/9 bytes), matching the codec's varint writer.
+// Used for the script-length prefix in the BIP341 TapLeaf hash; tapscripts can
+// exceed 65,535 bytes (large inscriptions), so the 0xfe 4-byte case is required.
+export function compactSize(n) {
+  if (n < 0xfd) return Uint8Array.of(n);
+  if (n <= 0xffff) return Uint8Array.of(0xfd, n & 0xff, (n >>> 8) & 0xff);
+  if (n <= 0xffffffff) return Uint8Array.of(0xfe, n & 0xff, (n >>> 8) & 0xff, (n >>> 16) & 0xff, (n >>> 24) & 0xff);
+  const b = new Uint8Array(9); b[0] = 0xff; new DataView(b.buffer).setBigUint64(1, BigInt(n), true); return b;
+}
+
 const DEFAULT_LIMITS = {
   maxScriptSize: 10000, maxScriptElementSize: 520,
   maxOpsPerScript: 201, maxStackSize: 1000, maxMultisigKeys: 20,
@@ -114,6 +124,18 @@ export class ScriptInterpreter {
     this.scriptEngine = scriptEngine;
     this.limits = limits;
     this.handlers = this.#buildHandlers();
+    // Per-transaction sighash midstate cache (BIP143/BIP341 hashPrevouts,
+    // hashSequence, hashOutputs, etc. depend only on the whole tx, not the input
+    // being signed). Without this, a tx with n segwit/taproot inputs recomputes
+    // these O(n)-sized hashes n times = O(n^2); a 1,400-input consolidation then
+    // takes ~minutes. Keyed by the tx object (WeakMap) so it clears itself.
+    this._sigCache = new WeakMap();
+  }
+
+  #txCache(tx) {
+    let c = this._sigCache.get(tx);
+    if (!c) { c = {}; this._sigCache.set(tx, c); }
+    return c;
   }
 
   // ---- sighash ----
@@ -162,11 +184,13 @@ export class ScriptInterpreter {
       let p = 0; for (const a of arrs) { out.set(a, p); p += a.length; }
       return out;
     };
-    const hashPrevouts = anyone ? zero : dsha256(cat(tx.inputs.map(outpoint)));
-    const hashSequence = (anyone || base === 2 || base === 3) ? zero
-      : dsha256(cat(tx.inputs.map((i) => u32(i.sequence))));
     const serOut = (o) => this.codec.encode('TransactionOutput', o);
-    const hashOutputs = (base !== 2 && base !== 3) ? dsha256(cat(tx.outputs.map(serOut)))
+    // These three depend only on the whole tx — memoize per tx (see #txCache).
+    const C = this.#txCache(tx);
+    const hashPrevouts = anyone ? zero : (C.wPrevouts ??= dsha256(cat(tx.inputs.map(outpoint))));
+    const hashSequence = (anyone || base === 2 || base === 3) ? zero
+      : (C.wSequence ??= dsha256(cat(tx.inputs.map((i) => u32(i.sequence)))));
+    const hashOutputs = (base !== 2 && base !== 3) ? (C.wOutputs ??= dsha256(cat(tx.outputs.map(serOut))))
       : (base === 3 && inIndex < tx.outputs.length) ? dsha256(serOut(tx.outputs[inIndex]))
       : zero;
     const script = hexToBytes(scriptCodeHex);
@@ -204,15 +228,18 @@ export class ScriptInterpreter {
     };
     const outpoint = (inp) => cat([hexToBytes(inp.prevout.txid).reverse(), u32(inp.prevout.vout)]);
 
+    // sha_prevouts/amounts/scriptpubkeys/sequences/outputs depend only on the
+    // whole tx (+ its prevout set, identical across inputs) — memoize per tx.
+    const C = this.#txCache(tx);
     const parts = [u8(0x00), u8(hashType), u32(tx.version), u32(tx.lockTime)];
     if (!anyone) {
-      parts.push(sha256(cat(tx.inputs.map(outpoint))));
-      parts.push(sha256(cat(prevouts.map((p) => i64(p.value)))));
-      parts.push(sha256(cat(prevouts.map((p) => varbytes(hexToBytes(p.scriptPubKey))))));
-      parts.push(sha256(cat(tx.inputs.map((i) => u32(i.sequence)))));
+      parts.push(C.tPrevouts ??= sha256(cat(tx.inputs.map(outpoint))));
+      parts.push(C.tAmounts ??= sha256(cat(prevouts.map((p) => i64(p.value)))));
+      parts.push(C.tScriptpubkeys ??= sha256(cat(prevouts.map((p) => varbytes(hexToBytes(p.scriptPubKey))))));
+      parts.push(C.tSequences ??= sha256(cat(tx.inputs.map((i) => u32(i.sequence)))));
     }
     if (base !== 2 && base !== 3) {
-      parts.push(sha256(cat(tx.outputs.map((o) => this.codec.encode('TransactionOutput', o)))));
+      parts.push(C.tOutputs ??= sha256(cat(tx.outputs.map((o) => this.codec.encode('TransactionOutput', o)))));
     }
     parts.push(u8((leafHash ? 2 : 0) + (annex ? 1 : 0))); // spend_type
     if (anyone) {
@@ -466,7 +493,10 @@ export class ScriptInterpreter {
   // amount, sigVersion, alt}. Returns {ok, error?}; stack is mutated.
   execute(scriptHex, stack, ctx = {}) {
     try {
-      if (scriptHex.length / 2 > this.limits.maxScriptSize) fail('script too large');
+      // BIP342: tapscript has no per-script size limit. The legacy 10kB
+      // MAX_SCRIPT_SIZE does not apply; a tapscript's size is bounded only by the
+      // transaction/block weight limit (it has to fit in a block).
+      if (ctx.sigVersion !== 'tapscript' && scriptHex.length / 2 > this.limits.maxScriptSize) fail('script too large');
       ctx.alt = ctx.alt ?? [];
       ctx.scriptCode = ctx.scriptCode ?? scriptHex;
       this.requireMinimalNum = !!ctx.flags?.has('MINIMALDATA'); // for the shared num() helper
@@ -492,7 +522,10 @@ export class ScriptInterpreter {
           }
           continue;
         }
-        if (op.code > 0x60 && ++opCount > this.limits.maxOpsPerScript) fail('op count');
+        // BIP342: tapscript removes the 201-non-push-opcode-per-script limit
+        // entirely (there is no opcode-count cap). Signature-checking cost is
+        // instead bounded separately by the per-input sigops budget.
+        if (ctx.sigVersion !== 'tapscript' && op.code > 0x60 && ++opCount > this.limits.maxOpsPerScript) fail('op count');
         if (this.#isDisabled(op.name)) fail(`disabled opcode ${op.name}`);
         const isBranch = ['OP_IF', 'OP_NOTIF', 'OP_ELSE', 'OP_ENDIF'].includes(op.name);
         if (!executing && !isBranch) continue;
@@ -610,10 +643,7 @@ export class ScriptInterpreter {
     const leafVersion = control[0] & 0xfe;
     const parity = control[0] & 0x01;
     const internalKey = control.subarray(1, 33);
-    const sizePrefix = script.length < 0xfd
-      ? Uint8Array.of(script.length)
-      : Uint8Array.of(0xfd, script.length & 0xff, script.length >> 8);
-    const leafHash = taggedHash('TapLeaf', Uint8Array.of(leafVersion), sizePrefix, script);
+    const leafHash = taggedHash('TapLeaf', Uint8Array.of(leafVersion), compactSize(script.length), script);
     let k = leafHash;
     for (let i = 33; i < control.length; i += 32) {
       const e = control.subarray(i, i + 32);
