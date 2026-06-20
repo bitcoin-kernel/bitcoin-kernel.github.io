@@ -37,12 +37,14 @@ export async function swarmHash(label) {
 const rid = () => crypto.getRandomValues(new Uint8Array(8)).reduce((s, b) => s + b.toString(16).padStart(2, '0'), '');
 
 export class Mesh {
-  // opts: { tracker, swarm(hex), stun(['stun:...']), serve(hash)->Promise<Uint8Array|null>, onstatus() }
+  // opts: { tracker, swarm(hex), stun(['stun:...']), serve(hash)->Uint8Array|null,
+  //         inventory()->[[height,hash],...], onstatus() }
   constructor(opts) {
     this.tracker = opts.tracker;
     this.swarm = opts.swarm;
     this.iceServers = (opts.stun || ['stun:stun.l.google.com:19302']).map((u) => ({ urls: u }));
     this.serve = opts.serve || (async () => null);
+    this.inventory = opts.inventory || (() => []); // what blocks this node holds, for peers to query
     this.onstatus = opts.onstatus || (() => {});
     this.ws = null;
     this.peers = new Map();          // peerId -> { pc, ch, recv }
@@ -151,6 +153,8 @@ export class Mesh {
     if (typeof data === 'string') {
       let m; try { m = JSON.parse(data); } catch { return; }
       if (m.t === 'want') { this._serve(entry, m.h); return; }
+      if (m.t === 'inv?') { try { entry.ch.send(JSON.stringify({ t: 'inv', b: this.inventory() })); } catch {} return; }
+      if (m.t === 'inv') { entry._inv = Array.isArray(m.b) ? m.b : []; if (entry.invDone) { entry.invDone(); entry.invDone = null; } return; }
       if (m.t === 'no') { if (entry.recv && entry.recv.hash === m.h) { entry.recv.reject(new Error('peer lacks block')); entry.recv = null; } return; }
       if (m.t === 'blk') { entry.recv = { ...entry.recv, hash: m.h, size: m.n, buf: new Uint8Array(m.n), got: 0 }; return; }
     } else if (entry.recv) {
@@ -172,6 +176,22 @@ export class Mesh {
         entry.ch.send(bytes.subarray(i, i + CHUNK));
       }
     } catch {}
+  }
+
+  // What the swarm collectively holds: height -> hash, from every peer's inventory.
+  // Lets the filler pull blocks a peer already has (no explorer hash lookup) and
+  // only fall back to the explorer for the racing tip no peer has yet.
+  async swarmInventory() {
+    const peers = [...this.peers.values()].filter((e) => e.ch.readyState === 'open');
+    await Promise.all(peers.map((entry) => new Promise((res) => {
+      entry._inv = null; entry.invDone = res;
+      const to = setTimeout(() => { entry.invDone = null; res(); }, 2000);
+      const done = entry.invDone; entry.invDone = () => { clearTimeout(to); done(); };
+      try { entry.ch.send(JSON.stringify({ t: 'inv?' })); } catch { clearTimeout(to); res(); }
+    })));
+    const inv = new Map();
+    for (const entry of peers) if (Array.isArray(entry._inv)) for (const [h, hash] of entry._inv) if (!inv.has(h)) inv.set(h, hash);
+    return inv;
   }
 
   // Ask connected peers for a block; first to return it wins. Caller verifies by hash.

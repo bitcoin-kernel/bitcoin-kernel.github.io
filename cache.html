@@ -102,6 +102,8 @@ import { Mesh, swarmHash } from './mesh.js';
 import { Codec } from './engine/codec/codec.js';
 import { BlockEngine } from './engine/codec/blocks.js';
 import { bytesToHex } from './engine/codec/hash.js';
+import { setVerifyBackend } from './engine/codec/secp256k1.js';
+import { loadSecpWasm, wasmBackend } from './engine/wasm/secp-wasm.js';
 import core from './engine/schema/core.js';
 import proof from './engine/schema/proof.js';
 import chain from './engine/schema/chain.js';
@@ -146,7 +148,7 @@ async function setPeering(on) {
     $('tracker').value = url; localStorage.setItem(TRACKER_KEY, url); localStorage.setItem('bk:peering', '1');
     await cache.init();
     const swarm = await swarmHash(SWARM_LABEL);
-    mesh = new Mesh({ tracker: url, swarm, serve: (h) => cache.get(h), onstatus: peerStat });
+    mesh = new Mesh({ tracker: url, swarm, serve: (h) => cache.get(h), inventory: () => cache.entries().map((e) => [e.height, e.hash]), onstatus: peerStat });
     mesh.start(); rebuildSources(); peerStat(mesh.status());
   } else {
     localStorage.setItem('bk:peering', '0');
@@ -163,7 +165,7 @@ let growing = false;
 // Grow one block. Pass a tip hint to avoid a per-block explorer call while
 // auto-growing. Returns { status:'added'|'current'|'failed'|'error'|'busy',
 // from, tip } so the caller (manual click or the auto loop) can pace itself.
-async function growOne(tipHint) {
+async function growOne(tipHint, invHint) {
   if (growing) return { status: 'busy' };
   growing = true;
   const st = $('gstat');
@@ -172,14 +174,19 @@ async function growOne(tipHint) {
     if (tip == null) { st.textContent = 'finding the chain tip…'; tip = await sources.tipHeight(); }
     await cache.init();
     const have = new Set(cache.entries().map((e) => e.height));
-    let target = null;
-    for (let h = tip; h > tip - cache.CAP && h >= 0; h--) { if (!have.has(h)) { target = h; break; } }
+    // Swarm-aware fill: prefer the highest missing block a PEER already holds —
+    // we get its hash from the inventory, so no explorer lookup at all. Only the
+    // racing tip (no peer has it yet) falls back to the explorer.
+    const inv = invHint || (mesh ? await mesh.swarmInventory() : new Map());
+    let target = null, knownHash = null;
+    for (let h = tip; h > tip - cache.CAP && h >= 0; h--) { if (!have.has(h) && inv.has(h)) { target = h; knownHash = inv.get(h); break; } }
+    if (target == null) { for (let h = tip; h > tip - cache.CAP && h >= 0; h--) { if (!have.has(h)) { target = h; break; } } }
     if (target == null) {
       st.innerHTML = `<b style="color:var(--good)">✓ your node is current</b> — holding the latest ${fmt(Math.min(cache.CAP, tip + 1))} blocks`;
       return { status: 'current', tip };
     }
     st.textContent = `fetching block ${fmt(target)}…`;
-    const hash = await sources.hashForHeight(target);
+    const hash = knownHash || await sources.hashForHeight(target);
     const got = await sources.getBlock(hash);
     st.textContent = `verifying block ${fmt(target)}…`;
     const block = codec.decode('Block', bytesToHex(got.bytes));
@@ -187,13 +194,13 @@ async function growOne(tipHint) {
     const ok = codec.checkProofOfWork(block.header)
       && codec.merkleRoot(txids) === block.header.merkleRoot
       && be.validateBlockStructure(block).results.every((r) => r.ok !== false);
-    if (!ok) { st.innerHTML = `<b style="color:var(--bad)">✗ block ${fmt(target)} failed verification</b> — not stored`; return { status: 'failed', tip }; }
+    if (!ok) { st.innerHTML = `<b style="color:var(--bad)">✗ block ${fmt(target)} failed verification</b> — not stored`; return { status: 'failed', tip, inv }; }
     await cache.put(hash, target, got.bytes);
     await cache.markVerified(hash);
     await cache.indexBlock(target, txids);
-    const via = got.from === 'a peer' ? ' &middot; <b style="color:var(--ac)">⚡ from a peer</b>' : '';
+    const via = got.from === 'a peer' ? ' &middot; <b style="color:var(--ac)">⚡ from a peer</b>' : ` &middot; <span style="color:var(--mut)">from ${got.from}</span>`;
     st.innerHTML = `<b style="color:var(--good)">✓ verified &amp; added block ${fmt(target)}</b> &middot; ${fmt(block.transactions.length)} transactions${via}`;
-    return { status: 'added', from: got.from, height: target, tip };
+    return { status: 'added', from: got.from, height: target, tip, inv };
   } catch (e) {
     st.textContent = 'Error: ' + e.message;
     return { status: 'error', error: e.message };
@@ -214,15 +221,17 @@ function setAuto(on) {
   if (on) autoLoop(); else if (autoWake) autoWake();
 }
 async function autoLoop() {
-  let tip = null;
+  let tip = null, inv = null;
   while (autoOn) {
-    if (tip == null) { try { tip = await sources.tipHeight(); } catch { await autoSleep(ERROR_BACKOFF); continue; } }
-    const r = await growOne(tip);
+    if (tip == null) { try { tip = await sources.tipHeight(); } catch { await autoSleep(ERROR_BACKOFF); continue; } inv = null; }
+    if (inv == null && mesh) inv = await mesh.swarmInventory();   // refresh what peers hold (once per cycle / after explorer)
+    const r = await growOne(tip, inv);
+    inv = r.inv || inv;
     if (!autoOn) break;
     await load(tip);                              // refresh stats without another explorer call
     if (r.status === 'current') { tip = null; await autoSleep(CURRENT_RECHECK); }   // re-fetch tip later, then follow
-    else if (r.status === 'error' || r.status === 'failed') { await autoSleep(ERROR_BACKOFF); }
-    else await autoSleep(r.from === 'a peer' ? PEER_DELAY : EXPLORER_DELAY);
+    else if (r.status === 'error' || r.status === 'failed') { inv = null; await autoSleep(ERROR_BACKOFF); }
+    else { if (r.from !== 'a peer') inv = null; await autoSleep(r.from === 'a peer' ? PEER_DELAY : EXPLORER_DELAY); }  // re-poll inventory after an explorer fetch
   }
 }
 
