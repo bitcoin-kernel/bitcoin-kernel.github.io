@@ -32,7 +32,7 @@
   button.danger:hover{border-color:var(--bad);color:var(--bad)}
   button.primary{background:var(--ac);color:#fff;border-color:var(--ac)}button.primary:hover{background:#d2760a}
   button:disabled{opacity:.55;cursor:default}
-  .controls{display:flex;justify-content:center;margin:1.4rem 0 0}
+  .controls{display:flex;justify-content:center;align-items:center;gap:.9rem;margin:1.4rem 0 0}
   .gstat{text-align:center;margin:.7rem 0 0;font:.85rem var(--mono);color:var(--mut);min-height:1.2em}
   .peering{display:flex;flex-wrap:wrap;gap:.6rem;justify-content:center;align-items:center;margin:1rem 0 0}
   .ptoggle{font-size:.9rem;color:var(--fg);display:flex;align-items:center;gap:.4rem;cursor:pointer}.ptoggle input{accent-color:var(--ac);cursor:pointer}
@@ -79,7 +79,7 @@
 <header class="hero"><div class="wrap">
   <h1>Your node.</h1>
   <p class="sub">The slice of the Bitcoin chain stored on this device. Each block was fetched once, verified by the engine, and kept here so it never has to be fetched again. As bitcoin-kernel grows toward a shared mesh, this is what your node can serve to others.</p>
-  <div class="controls"><button id="grow" class="primary">＋ Grow your node</button></div>
+  <div class="controls"><button id="grow" class="primary">＋ Grow your node</button><label class="ptoggle"><input type="checkbox" id="auto"> Auto-grow</label></div>
   <div id="gstat" class="gstat"></div>
   <div class="peering">
     <label class="ptoggle"><input type="checkbox" id="peer"> Peer with others</label>
@@ -159,19 +159,24 @@ const tipHeight = () => sources.tipHeight().catch(() => null);
 // Grow your node: fetch the highest block within the recent window that we don't
 // hold yet, verify it (proof of work, merkle, structure), and store it — so the
 // node fills and follows a contiguous window from the tip down, one block a click.
-async function grow() {
-  const btn = $('grow'), st = $('gstat');
-  btn.disabled = true;
+let growing = false;
+// Grow one block. Pass a tip hint to avoid a per-block explorer call while
+// auto-growing. Returns { status:'added'|'current'|'failed'|'error'|'busy',
+// from, tip } so the caller (manual click or the auto loop) can pace itself.
+async function growOne(tipHint) {
+  if (growing) return { status: 'busy' };
+  growing = true;
+  const st = $('gstat');
   try {
-    st.textContent = 'finding the chain tip…';
-    const tip = await sources.tipHeight();
+    let tip = tipHint;
+    if (tip == null) { st.textContent = 'finding the chain tip…'; tip = await sources.tipHeight(); }
     await cache.init();
     const have = new Set(cache.entries().map((e) => e.height));
     let target = null;
     for (let h = tip; h > tip - cache.CAP && h >= 0; h--) { if (!have.has(h)) { target = h; break; } }
     if (target == null) {
       st.innerHTML = `<b style="color:var(--good)">✓ your node is current</b> — holding the latest ${fmt(Math.min(cache.CAP, tip + 1))} blocks`;
-      return;
+      return { status: 'current', tip };
     }
     st.textContent = `fetching block ${fmt(target)}…`;
     const hash = await sources.hashForHeight(target);
@@ -182,17 +187,42 @@ async function grow() {
     const ok = codec.checkProofOfWork(block.header)
       && codec.merkleRoot(txids) === block.header.merkleRoot
       && be.validateBlockStructure(block).results.every((r) => r.ok !== false);
-    if (!ok) { st.innerHTML = `<b style="color:var(--bad)">✗ block ${fmt(target)} failed verification</b> — not stored`; return; }
+    if (!ok) { st.innerHTML = `<b style="color:var(--bad)">✗ block ${fmt(target)} failed verification</b> — not stored`; return { status: 'failed', tip }; }
     await cache.put(hash, target, got.bytes);
     await cache.markVerified(hash);
     await cache.indexBlock(target, txids);
     const via = got.from === 'a peer' ? ' &middot; <b style="color:var(--ac)">⚡ from a peer</b>' : '';
     st.innerHTML = `<b style="color:var(--good)">✓ verified &amp; added block ${fmt(target)}</b> &middot; ${fmt(block.transactions.length)} transactions${via}`;
-    await load();
+    return { status: 'added', from: got.from, height: target, tip };
   } catch (e) {
     st.textContent = 'Error: ' + e.message;
+    return { status: 'error', error: e.message };
   } finally {
-    btn.disabled = false;
+    growing = false;
+  }
+}
+
+// --- auto-grow: keep filling the window, paced by source ---
+const PEER_DELAY = 1000;        // fast off the peer mesh
+const EXPLORER_DELAY = 12000;   // very slow off an explorer — never hammer it
+const CURRENT_RECHECK = 180000; // window full: re-check the tip every ~3 min
+const ERROR_BACKOFF = 8000;
+let autoOn = false, autoWake = null;
+const autoSleep = (ms) => new Promise((res) => { const t = setTimeout(res, ms); autoWake = () => { clearTimeout(t); autoWake = null; res(); }; });
+function setAuto(on) {
+  autoOn = on; localStorage.setItem('bk:autogrow', on ? '1' : '0');
+  if (on) autoLoop(); else if (autoWake) autoWake();
+}
+async function autoLoop() {
+  let tip = null;
+  while (autoOn) {
+    if (tip == null) { try { tip = await sources.tipHeight(); } catch { await autoSleep(ERROR_BACKOFF); continue; } }
+    const r = await growOne(tip);
+    if (!autoOn) break;
+    await load(tip);                              // refresh stats without another explorer call
+    if (r.status === 'current') { tip = null; await autoSleep(CURRENT_RECHECK); }   // re-fetch tip later, then follow
+    else if (r.status === 'error' || r.status === 'failed') { await autoSleep(ERROR_BACKOFF); }
+    else await autoSleep(r.from === 'a peer' ? PEER_DELAY : EXPLORER_DELAY);
   }
 }
 
@@ -241,18 +271,18 @@ function render(s, q, tip, list, txn, max, avg) {
   }
 }
 
-async function load() {
+// tipHint skips the explorer tip lookup (used during auto-grow to avoid a call per block)
+async function load(tipHint) {
   await cache.init();
-  const s = cache.stats();
-  const list = cache.entries();
-  const txn = await cache.txCount();
-  const avg = cache.avgBlockSize();
-  const max = await cache.maxBlocks();
+  const s = cache.stats(), list = cache.entries(), txn = await cache.txCount();
+  const avg = cache.avgBlockSize(), max = await cache.maxBlocks();
+  if (tipHint !== undefined) { render(s, await cache.quota(), tipHint, list, txn, max, avg); return; }
   render(s, await cache.quota(), null, list, txn, max, avg);  // paint instantly from local data
   const tip = await tipHeight();                              // then fill in the chain height
   if (tip != null) render(s, await cache.quota(), tip, list, txn, max, avg);
 }
-$('grow').onclick = grow;
+$('grow').onclick = async () => { await growOne(); load(); };
+$('auto').onchange = () => setAuto($('auto').checked);
 $('peer').onchange = () => setPeering($('peer').checked);
 
 // Prefill the tracker (from ?tracker= or the saved one). A shared ?tracker= link
@@ -263,6 +293,7 @@ const invited = new URLSearchParams(location.search).has('tracker');
 if (savedTracker() && (invited || localStorage.getItem('bk:peering') === '1')) {
   $('peer').checked = true; setPeering(true);
 }
+if (localStorage.getItem('bk:autogrow') === '1') { $('auto').checked = true; setAuto(true); }
 load();
 </script>
 </body>
