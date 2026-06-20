@@ -4,7 +4,11 @@
 // interface mirrors the node's BlockStore so it can evolve toward the sharded
 // mesh, where a node serves the blocks it holds. OPFS is origin-scoped, so the
 // verify page and the cache page read the exact same store.
-const CAP = 50; // most-recent blocks to retain (LRU); recent blocks are ~2-3 MB each
+// How many recent blocks to retain (the node's window). User-adjustable on the
+// "Your node" page up to the browser's storage quota; persisted in localStorage.
+const CAP_KEY = 'bk:maxblocks', CAP_DEFAULT = 50;
+let capValue = CAP_DEFAULT;
+try { const v = Number(localStorage.getItem(CAP_KEY)); if (Number.isFinite(v) && v >= 1) capValue = Math.floor(v); } catch {}
 
 let dir = null, idx = { byHeight: {}, byHash: {} }, ready = null;
 
@@ -21,6 +25,22 @@ async function saveIndex() {
   const root = await navigator.storage.getDirectory();
   const w = await (await root.getFileHandle('blocks-index.json', { create: true })).createWritable();
   await w.write(JSON.stringify(idx)); await w.close();
+}
+
+// Retention: keep the capValue highest blocks by height, so the node holds a
+// contiguous recent window from the tip down (not a scatter of whatever was last
+// touched). Lowering the cap evicts the excess; "Grow your node" fills/slides
+// the window without evicting its own tip. Caller persists the index.
+async function evictToCap() {
+  if (!dir) return;
+  const all = Object.keys(idx.byHash);
+  if (all.length <= capValue) return;
+  all.sort((a, b) => idx.byHash[b].height - idx.byHash[a].height);
+  for (const old of all.slice(capValue)) {
+    try { await dir.removeEntry(old + '.bin'); } catch {}
+    const oh = idx.byHash[old].height; delete idx.byHash[old];
+    if (idx.byHeight[oh] === old) delete idx.byHeight[oh];
+  }
 }
 
 // --- txid -> height index (IndexedDB) ---
@@ -43,7 +63,21 @@ function openDB() {
 function tx(mode) { return db.transaction('txheight', mode).objectStore('txheight'); }
 
 export const cache = {
-  CAP,
+  get CAP() { return capValue; },                       // current window size (blocks)
+  async setCap(n) {                                     // user changes the window size
+    capValue = Math.max(1, Math.floor(n));
+    try { localStorage.setItem(CAP_KEY, String(capValue)); } catch {}
+    if (dir) { await evictToCap(); try { await saveIndex(); } catch {} }
+  },
+  avgBlockSize() {                                      // bytes; from what's cached, else ~2MB
+    const e = Object.values(idx.byHash).filter((x) => x.size);
+    return e.length ? Math.round(e.reduce((s, x) => s + x.size, 0) / e.length) : 2_000_000;
+  },
+  async maxBlocks() {                                   // how many blocks fit, at 80% of quota
+    const q = await this.quota();
+    if (!q.quota) return Math.max(capValue, 2000);
+    return Math.max(capValue, Math.floor((q.quota * 0.8) / this.avgBlockSize()));
+  },
   init() { if (!ready) ready = load().then(() => true).catch(() => { dir = null; return false; }); return ready; },
   available: () => !!dir,
   hashForHeight: (h) => idx.byHeight[h] || null,
@@ -65,19 +99,7 @@ export const cache = {
       const prev = idx.byHash[hash] || {};
       idx.byHash[hash] = { height, size: bytes.length, last: Date.now(), verified: prev.verified || false };
       idx.byHeight[height] = hash;
-      // Retention: keep the CAP highest blocks by height, so the node holds a
-      // contiguous recent window from the tip down (not a scatter of whatever
-      // was last touched). "Grow your node" then fills and slides this window
-      // cleanly without evicting its own tip.
-      const all = Object.keys(idx.byHash);
-      if (all.length > CAP) {
-        all.sort((a, b) => idx.byHash[b].height - idx.byHash[a].height);
-        for (const old of all.slice(CAP)) {
-          try { await dir.removeEntry(old + '.bin'); } catch {}
-          const oh = idx.byHash[old].height; delete idx.byHash[old];
-          if (idx.byHeight[oh] === old) delete idx.byHeight[oh];
-        }
-      }
+      await evictToCap();
       await saveIndex();
     } catch {}
   },

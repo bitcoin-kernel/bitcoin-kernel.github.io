@@ -53,6 +53,11 @@
   .brow .sz{color:var(--mut);width:5rem;flex-shrink:0}
   .brow .hash{color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .empty{padding:2rem 1.4rem;text-align:center;color:var(--mut)}
+  .setting{padding:.7rem 1.4rem 1rem}
+  .setting .srow{display:flex;justify-content:space-between;align-items:baseline;font-size:.92rem}
+  .setting .srow b{font:800 1.05rem var(--mono);color:var(--ac)}
+  .setting .smeta{font:.78rem var(--mono);color:var(--mut)}
+  .setting input[type=range]{width:100%;margin:.5rem 0 .3rem;accent-color:var(--ac);cursor:pointer}
   .note{margin:1.1rem 0 0;padding:.7rem 1rem;background:var(--pan);border:1px solid var(--bd);border-radius:10px;font-size:.85rem;color:var(--mut);line-height:1.5}.note b{color:var(--fg)}
   footer{margin:3rem 0 2rem;text-align:center;font-size:.85rem;color:var(--mut)}
 </style>
@@ -139,11 +144,12 @@ async function grow() {
   }
 }
 
-function render(s, q, tip, list, txn) {
+function render(s, q, tip, list, txn, max, avg) {
   const mb = (s.bytes / 1e6).toFixed(s.bytes >= 1e7 ? 0 : 1);
   const winPct = Math.min(100, s.n / cache.CAP * 100);
   const usedGB = q.quota ? (q.usage / 1e9).toFixed(2) : null;
   const quotaGB = q.quota ? (q.quota / 1e9).toFixed(0) : null;
+  const cap = cache.CAP, sliderMax = Math.max(cap, max || 2000), capGB = (cap * avg / 1e9).toFixed(2);
   const rows = list.length ? list.map((e) => `
     <div class="brow">
       <span class="h"><a href="./random.html?height=${e.height}">${fmt(e.height)}</a></span>
@@ -165,11 +171,22 @@ function render(s, q, tip, list, txn) {
       <div class="stat"><div class="n b">${fmt(txn || 0)}</div><div class="l">Tx indexed</div></div>
       <div class="stat"><div class="n b">${tip ? fmt(tip) : '—'}</div><div class="l">Chain height</div></div>
     </div>
+    <div class="seclab">Node size</div>
+    <div class="setting">
+      <div class="srow"><span>Keep up to <b id="capval">${fmt(cap)}</b> blocks</span><span class="smeta" id="capsize">≈ ${capGB} GB</span></div>
+      <input type="range" id="capslider" min="10" max="${sliderMax}" step="10" value="${cap}">
+      <div class="smeta">${quotaGB ? `your browser allows ~${quotaGB} GB` : 'storage limit unknown'}${cap >= sliderMax ? ' &middot; at your limit' : ''} &middot; fill it with Grow your node, or peers once peering is on</div>
+    </div>
     <div class="seclab"><span>Cached blocks</span>${list.length ? `<button id="clear" class="danger" style="font-size:.72rem;padding:.25rem .6rem">Clear cache</button>` : ''}</div>
     <div class="blocks">${rows}</div>`;
   requestAnimationFrame(() => { const f = $('winfill'); if (f) f.style.width = winPct + '%'; });
   const cb = $('clear');
   if (cb) cb.onclick = async () => { if (confirm('Remove all cached blocks from this device?')) { await cache.clear(); load(); } };
+  const sl = $('capslider');
+  if (sl) {
+    sl.oninput = () => { const n = +sl.value; $('capval').textContent = fmt(n); $('capsize').textContent = `≈ ${(n * avg / 1e9).toFixed(2)} GB`; };
+    sl.onchange = async () => { await cache.setCap(+sl.value); load(); };
+  }
 }
 
 async function load() {
@@ -177,9 +194,11 @@ async function load() {
   const s = cache.stats();
   const list = cache.entries();
   const txn = await cache.txCount();
-  render(s, await cache.quota(), null, list, txn);     // paint instantly from local data
-  const tip = await tipHeight();                        // then fill in the chain height
-  if (tip != null) render(s, await cache.quota(), tip, list, txn);
+  const avg = cache.avgBlockSize();
+  const max = await cache.maxBlocks();
+  render(s, await cache.quota(), null, list, txn, max, avg);  // paint instantly from local data
+  const tip = await tipHeight();                              // then fill in the chain height
+  if (tip != null) render(s, await cache.quota(), tip, list, txn, max, avg);
 }
 $('grow').onclick = grow;
 load();
