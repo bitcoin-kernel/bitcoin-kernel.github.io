@@ -112,7 +112,7 @@
   <p class="note"><b>Two layers.</b> A block's proof of work, merkle root, witness commitment and structure all live inside the block itself, so they verify with no extra data. Scripts and signatures need the spending history (the prevouts), which isn't in the block &mdash; so <b>click any transaction</b> to fetch it and run its scripts and signatures through the engine for real, right here in your browser. That is the full check, one transaction at a time.</p>
 </div>
 
-<footer>An independent JavaScript implementation. Block data from <span id="prov">mempool.space</span>. <a href="./index.html">bitcoin-kernel</a></footer>
+<footer>An independent JavaScript implementation. Block data from <span id="prov">mempool.space</span><span id="cstat"></span>. <a href="./index.html">bitcoin-kernel</a></footer>
 
 <script type="module">
 import { Codec } from './engine/codec/codec.js';
@@ -156,6 +156,71 @@ async function api(path, { stream } = {}) {
   throw new Error('block explorers unreachable (' + (lastErr ? lastErr.message : 'CORS/offline') + ')');
 }
 
+// --- OPFS block cache (proof of concept) ---
+// A small Store seam: keep the most recent CAP blocks on the device so revisits
+// don't go back to the explorer. Backing is naive (one file per block, named by
+// hash) but the interface mirrors the node's BlockStore so it can evolve.
+// Blocks are immutable by hash; height->hash near the tip can change on a reorg,
+// so we re-resolve recent heights rather than trusting the cached mapping there.
+const cache = (() => {
+  const CAP = 50; // most-recent blocks to retain (LRU); recent blocks ~2-3 MB each
+  let dir = null, idx = { byHeight: {}, byHash: {} }, ready = null;
+  async function load() {
+    if (!navigator.storage || !navigator.storage.getDirectory) throw new Error('no OPFS');
+    const root = await navigator.storage.getDirectory();
+    dir = await root.getDirectoryHandle('blocks', { create: true });
+    try { idx = JSON.parse(await (await (await root.getFileHandle('blocks-index.json')).getFile()).text()); } catch {}
+    idx.byHeight = idx.byHeight || {}; idx.byHash = idx.byHash || {};
+    if (navigator.storage.persist) navigator.storage.persist();
+  }
+  async function saveIndex() {
+    const root = await navigator.storage.getDirectory();
+    const w = await (await root.getFileHandle('blocks-index.json', { create: true })).createWritable();
+    await w.write(JSON.stringify(idx)); await w.close();
+  }
+  return {
+    init() { if (!ready) ready = load().then(() => true).catch(() => { dir = null; return false; }); return ready; },
+    hashForHeight: (h) => idx.byHeight[h] || null,
+    async get(hash) {
+      if (!dir || !hash || !idx.byHash[hash]) return null;
+      try {
+        const bytes = new Uint8Array(await (await (await dir.getFileHandle(hash + '.bin')).getFile()).arrayBuffer());
+        idx.byHash[hash].last = Date.now();
+        return bytes;
+      } catch { delete idx.byHash[hash]; return null; }
+    },
+    async put(hash, height, bytes) {
+      if (!dir) return;
+      try {
+        const w = await (await dir.getFileHandle(hash + '.bin', { create: true })).createWritable();
+        await w.write(bytes); await w.close();
+        idx.byHash[hash] = { height, size: bytes.length, last: Date.now() };
+        idx.byHeight[height] = hash;
+        const all = Object.keys(idx.byHash);
+        if (all.length > CAP) {
+          all.sort((a, b) => idx.byHash[a].last - idx.byHash[b].last);
+          for (const old of all.slice(0, all.length - CAP)) {
+            try { await dir.removeEntry(old + '.bin'); } catch {}
+            const oh = idx.byHash[old].height; delete idx.byHash[old];
+            if (idx.byHeight[oh] === old) delete idx.byHeight[oh];
+          }
+        }
+        await saveIndex();
+      } catch {}
+    },
+    stats() {
+      const e = Object.values(idx.byHash);
+      return { n: e.length, bytes: e.reduce((s, x) => s + (x.size || 0), 0) };
+    },
+  };
+})();
+
+function showCacheStat() {
+  const s = cache.stats();
+  const el = $('cstat');
+  if (el) el.textContent = s.n ? ` · ${s.n} block${s.n > 1 ? 's' : ''} cached on your device (${(s.bytes / 1e6).toFixed(0)} MB)` : '';
+}
+
 // count a number up from 0 -> value over ~600ms
 function countUp(el, value) {
   const t0 = performance.now(), dur = 600;
@@ -170,25 +235,38 @@ async function verify(height, push = true) {
   $('live').classList.add('on'); $('bar').classList.remove('on'); $('barfill').style.width = '0'; $('live-meta').textContent = '';
   try {
     const tF = performance.now();
-    step(`looking up block ${fmt(height)}`);
-    const hash = (await (await api(`/api/block-height/${height}`)).text()).trim();
-
-    step('downloading block');
-    const resp = await api(`/api/block/${hash}/raw`);
-    const total = +resp.headers.get('content-length') || 0;
-    const reader = resp.body.getReader();
-    const chunks = []; let received = 0;
-    const tDl = performance.now();
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value); received += value.length;
-      if (total) setBar(received / total);
-      $('live-meta').textContent = `${(received / 1024).toFixed(0)} KB${total ? ' / ' + (total / 1024).toFixed(0) + ' KB' : ''}`;
+    await cache.init();
+    let bytes, hash, received, dlMs = 0, fromCache = false;
+    // near-tip heights can reorg, so don't trust a cached height->hash there
+    const nearTip = TIP != null && height > TIP - 6;
+    const ch = nearTip ? null : cache.hashForHeight(height);
+    const cached = ch ? await cache.get(ch) : null;
+    if (cached) {
+      step('reading block from your device');
+      bytes = cached; hash = ch; received = bytes.length; fromCache = true;
+      $('prov').textContent = 'your device (OPFS cache)';
+      await sleep(60);
+    } else {
+      step(`looking up block ${fmt(height)}`);
+      hash = (await (await api(`/api/block-height/${height}`)).text()).trim();
+      step('downloading block');
+      const resp = await api(`/api/block/${hash}/raw`);
+      const total = +resp.headers.get('content-length') || 0;
+      const reader = resp.body.getReader();
+      const chunks = []; received = 0;
+      const tDl = performance.now();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value); received += value.length;
+        if (total) setBar(received / total);
+        $('live-meta').textContent = `${(received / 1024).toFixed(0)} KB${total ? ' / ' + (total / 1024).toFixed(0) + ' KB' : ''}`;
+      }
+      dlMs = performance.now() - tDl;
+      setBar(1);
+      bytes = new Uint8Array(received); { let o = 0; for (const c of chunks) { bytes.set(c, o); o += c.length; } }
+      cache.put(hash, height, bytes); // fire-and-forget: keep it for next time
     }
-    const dlMs = performance.now() - tDl;
-    setBar(1);
-    const bytes = new Uint8Array(received); { let o = 0; for (const c of chunks) { bytes.set(c, o); o += c.length; } }
     const fetchMs = performance.now() - tF;
 
     $('bar').classList.remove('on');
@@ -219,7 +297,8 @@ async function verify(height, push = true) {
     $('live').classList.remove('on');
     render({ height, hash, block, txids, powOk, merkleGot, merkleOk, struct, structFails, ins, outs, types, target,
       allOk: powOk && merkleOk && structFails.length === 0, bytes: received, weight: be.blockWeight(block),
-      fetchMs, decodeMs, verifyMs, merkleMs, dlMs });
+      fetchMs, decodeMs, verifyMs, merkleMs, dlMs, fromCache });
+    showCacheStat();
     $('height').value = height;
     if (push) history.pushState({ height }, '', `?height=${height}`);
   } catch (e) {
@@ -256,7 +335,7 @@ function render(r) {
     <div class="chead">
       <div class="h">Block ${fmt(r.height)}</div>
       <div class="hash">${esc(r.hash)}</div>
-      <div class="meta">${d} &middot; ${(r.bytes / 1024).toFixed(0)} KB &middot; weight ${fmt(r.weight)}</div>
+      <div class="meta">${d} &middot; ${(r.bytes / 1024).toFixed(0)} KB &middot; weight ${fmt(r.weight)}${r.fromCache ? ' &middot; <b style="color:var(--good)">⚡ served from your device</b>' : ''}</div>
     </div>
     <div class="checks">
       ${chk(r.powOk, 'Proof of work', `hash ${r.hash.slice(0, 18)}… &le; target ${r.target.replace(/^0+/, '0…').slice(0, 18)}…`, null, false, 0)}
