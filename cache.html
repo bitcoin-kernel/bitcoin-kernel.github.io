@@ -78,7 +78,7 @@ async function tipHeight() {
   return null;
 }
 
-function render(s, q, tip, list) {
+function render(s, q, tip, list, txn) {
   const mb = (s.bytes / 1e6).toFixed(s.bytes >= 1e7 ? 0 : 1);
   const winPct = Math.min(100, s.n / cache.CAP * 100);
   const usedGB = q.quota ? (q.usage / 1e9).toFixed(2) : null;
@@ -101,6 +101,7 @@ function render(s, q, tip, list) {
       <div class="stat"><div class="n a">${fmt(s.n)}</div><div class="l">Blocks</div></div>
       <div class="stat"><div class="n g">${fmt(s.verified)}</div><div class="l">Verified</div></div>
       <div class="stat"><div class="n">${mb}<span style="font-size:.7rem;color:var(--mut);font-weight:400"> MB</span></div><div class="l">On device</div></div>
+      <div class="stat"><div class="n b">${fmt(txn || 0)}</div><div class="l">Tx indexed</div></div>
       <div class="stat"><div class="n b">${tip ? fmt(tip) : '—'}</div><div class="l">Chain height</div></div>
     </div>
     <div class="seclab"><span>Cached blocks</span>${list.length ? `<button id="clear" class="danger" style="font-size:.72rem;padding:.25rem .6rem">Clear cache</button>` : ''}</div>
@@ -114,9 +115,10 @@ async function load() {
   await cache.init();
   const s = cache.stats();
   const list = cache.entries();
-  render(s, await cache.quota(), null, list);          // paint instantly from local data
+  const txn = await cache.txCount();
+  render(s, await cache.quota(), null, list, txn);     // paint instantly from local data
   const tip = await tipHeight();                        // then fill in the chain height
-  if (tip != null) render(s, await cache.quota(), tip, list);
+  if (tip != null) render(s, await cache.quota(), tip, list, txn);
 }
 load();
 </script>

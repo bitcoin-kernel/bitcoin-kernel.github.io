@@ -23,6 +23,25 @@ async function saveIndex() {
   await w.write(JSON.stringify(idx)); await w.close();
 }
 
+// --- txid -> height index (IndexedDB) ---
+// A block has up to thousands of txids, so this needs many small entries with
+// incremental writes and O(1) async lookups — IndexedDB, not a rewritten JSON
+// file. The mapping is a permanent fact (a tx lives at one height forever, barring
+// a deep reorg), so we keep it even after the block's bytes are evicted: the index
+// only grows as you browse, and lets the tx page resolve a coin's funding block
+// with zero explorer calls.
+let db = null, dbReady = null;
+function openDB() {
+  return new Promise((resolve) => {
+    let req;
+    try { req = indexedDB.open('bitcoin-kernel', 1); } catch { return resolve(null); }
+    req.onupgradeneeded = () => { const d = req.result; if (!d.objectStoreNames.contains('txheight')) d.createObjectStore('txheight'); };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => resolve(null);
+  });
+}
+function tx(mode) { return db.transaction('txheight', mode).objectStore('txheight'); }
+
 export const cache = {
   CAP,
   init() { if (!ready) ready = load().then(() => true).catch(() => { dir = null; return false; }); return ready; },
@@ -80,10 +99,43 @@ export const cache = {
   },
 
   async clear() {
-    if (!dir) return;
-    for (const hash of Object.keys(idx.byHash)) { try { await dir.removeEntry(hash + '.bin'); } catch {} }
-    idx = { byHeight: {}, byHash: {} };
-    try { await saveIndex(); } catch {}
+    if (dir) {
+      for (const hash of Object.keys(idx.byHash)) { try { await dir.removeEntry(hash + '.bin'); } catch {} }
+      idx = { byHeight: {}, byHash: {} };
+      try { await saveIndex(); } catch {}
+    }
+    await this.initTx();
+    if (db) { try { tx('readwrite').clear(); } catch {} }
+  },
+
+  // --- txid -> height index ---
+  initTx() { if (!dbReady) dbReady = openDB().then((d) => { db = d; return !!d; }); return dbReady; },
+
+  // record every txid in a decoded block at that block's height (one transaction)
+  async indexBlock(height, txids) {
+    await this.initTx(); if (!db) return;
+    try {
+      const store = tx('readwrite');
+      for (const t of txids) store.put(height, t);
+      await new Promise((res, rej) => { store.transaction.oncomplete = res; store.transaction.onerror = () => rej(); });
+    } catch {}
+  },
+
+  // record a single tx's height (learned from fetching one transaction)
+  async indexTx(txid, height) {
+    await this.initTx(); if (!db || height == null) return;
+    try { tx('readwrite').put(height, txid); } catch {}
+  },
+
+  // the funding block of a coin, if we've already seen the block that created it
+  async heightForTx(txid) {
+    await this.initTx(); if (!db) return null;
+    return new Promise((resolve) => { try { const r = tx('readonly').get(txid); r.onsuccess = () => resolve(r.result ?? null); r.onerror = () => resolve(null); } catch { resolve(null); } });
+  },
+
+  async txCount() {
+    await this.initTx(); if (!db) return 0;
+    return new Promise((resolve) => { try { const r = tx('readonly').count(); r.onsuccess = () => resolve(r.result || 0); r.onerror = () => resolve(0); } catch { resolve(0); } });
   },
 
   async quota() {

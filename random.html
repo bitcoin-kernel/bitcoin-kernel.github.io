@@ -221,6 +221,7 @@ async function verify(height, push = true) {
     await sleep(40);
     const tV = performance.now();
     const txids = block.transactions.map((t) => codec.txid(t));
+    cache.indexBlock(height, txids); // build the txid->height index for free from this decode
     const tMerkle0 = performance.now();
     const merkleGot = codec.merkleRoot(txids);
     const merkleMs = performance.now() - tMerkle0;
@@ -346,8 +347,14 @@ async function showTx(txid, push = true) {
       const skipped = res.filter((r) => r.ok === null).length;
       ver = { res, ms, total, ok, skipped, allOk: total > 0 && ok === total };
     } catch (e) { ver = { error: e.message }; }
+    cache.indexTx(tx.txid, tx.status && tx.status.block_height); // learn this tx's height too
+    // resolve each input's funding block from the local index only — no explorer calls
+    const funds = {};
+    await Promise.all(tx.vin.filter((v) => !v.is_coinbase && v.txid).map(async (v) => {
+      const h = await cache.heightForTx(v.txid); if (h != null) funds[v.txid] = h;
+    }));
     $('live').classList.remove('on');
-    renderTx(tx, ver);
+    renderTx(tx, ver, funds);
     if (push) history.pushState({ tx: txid }, '', `?tx=${txid}`);
   } catch (e) {
     $('live').classList.remove('on');
@@ -357,7 +364,7 @@ async function showTx(txid, push = true) {
   }
 }
 
-function renderTx(tx, ver) {
+function renderTx(tx, ver, funds = {}) {
   const st = tx.status || {};
   const inT = tx.vin.reduce((s, v) => s + (v.prevout ? v.prevout.value : 0), 0);
   const outT = tx.vout.reduce((s, v) => s + v.value, 0);
@@ -371,8 +378,10 @@ function renderTx(tx, ver) {
   const vins = tx.vin.map((v, i) => {
     if (v.is_coinbase) return `<div class="ior"><div class="top"><span class="amt">newly issued coins</span><span class="typ">coinbase</span></div></div>`;
     const p = v.prevout || {};
+    const fh = funds[v.txid];
+    const fchip = fh != null ? ` &middot; <a href="?height=${fh}" data-h="${fh}" title="funding block, known from your local index">block ${fmt(fh)}</a>` : '';
     return `<div class="ior"><div class="top"><span class="amt">${mark(i)}${btc(p.value || 0)} BTC</span><span class="typ">${esc(p.scriptpubkey_type || '')}</span></div>`
-      + `<div class="sub">from <a href="?tx=${v.txid}" data-tx="${v.txid}">${esc(v.txid.slice(0, 22))}…:${v.vout}</a>${p.scriptpubkey_address ? ' &middot; ' + esc(p.scriptpubkey_address) : ''}</div></div>`;
+      + `<div class="sub">from <a href="?tx=${v.txid}" data-tx="${v.txid}">${esc(v.txid.slice(0, 22))}…:${v.vout}</a>${fchip}${p.scriptpubkey_address ? ' &middot; ' + esc(p.scriptpubkey_address) : ''}</div></div>`;
   }).join('');
   const vouts = tx.vout.map((o) => `<div class="ior"><div class="top"><span class="amt">${btc(o.value)} BTC</span><span class="typ">${esc(o.scriptpubkey_type || '')}</span></div>${o.scriptpubkey_address ? `<div class="sub">${esc(o.scriptpubkey_address)}</div>` : ''}</div>`).join('');
   let vhero = '';
