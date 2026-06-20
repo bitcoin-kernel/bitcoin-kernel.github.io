@@ -83,10 +83,10 @@ export class Mesh {
   _send(m) { if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(m)); }
 
   // Build a fresh peer connection that *originates* a data channel (offerer side).
+  // The channel is kept on the pc and adopted once the answer reveals the peer id.
   async _makeOffer() {
     const pc = new RTCPeerConnection({ iceServers: this.iceServers });
-    const ch = pc.createDataChannel('blocks');
-    this._wireChannel(pc, ch);
+    pc._ch = pc.createDataChannel('blocks');
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
     await iceComplete(pc);
@@ -115,41 +115,35 @@ export class Mesh {
       // a later joiner wants to connect to us — answer (we receive their channel)
       try {
         const pc = new RTCPeerConnection({ iceServers: this.iceServers });
-        pc.ondatachannel = (ev) => this._wireChannel(pc, ev.channel, m.from);
+        pc.ondatachannel = (ev) => this._adopt(m.from, pc, ev.channel); // answerer: receive the offerer's channel
         await pc.setRemoteDescription({ type: 'offer', sdp: m.sdp });
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         await iceComplete(pc);
         this._send({ type: 'answer', resource: this.swarm, to: m.from, offer_id: m.offer_id, sdp: pc.localDescription.sdp });
-        this._track(m.from, pc);
       } catch {}
     } else if (m.type === 'answer' && m.resource === this.swarm && m.offer_id) {
       const pc = this.pendingOffers.get(m.offer_id);
       if (pc) {
         this.pendingOffers.delete(m.offer_id);
-        try { await pc.setRemoteDescription({ type: 'answer', sdp: m.sdp }); this._track(m.from, pc); } catch { try { pc.close(); } catch {} }
+        try { await pc.setRemoteDescription({ type: 'answer', sdp: m.sdp }); this._adopt(m.from, pc, pc._ch); } // offerer: adopt our own channel now we know the peer
+        catch { try { pc.close(); } catch {} }
       }
     }
     // resource-peers / errors: informational, nothing to do
   }
 
-  _track(peerId, pc) {
-    pc.onconnectionstatechange = () => {
-      if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) {
-        const p = this.peers.get(peerId);
-        if (p && p.pc === pc) { this.peers.delete(peerId); this._emit(); }
-      }
-    };
-  }
-
-  _wireChannel(pc, ch, peerId) {
+  // Register a peer under its id once its data channel is open — same path for
+  // both the offerer and the answerer, so both sides see each other.
+  _adopt(peerId, pc, ch) {
     ch.binaryType = 'arraybuffer';
     const entry = { pc, ch, recv: null };
-    ch.onopen = () => { if (peerId != null) { this.peers.set(peerId, entry); this._emit(); } };
-    ch.onclose = () => { for (const [id, e] of this.peers) if (e.ch === ch) { this.peers.delete(id); this._emit(); } };
+    const register = () => { this.peers.set(peerId, entry); this._emit(); };
+    const drop = () => { if (this.peers.get(peerId) === entry) { this.peers.delete(peerId); this._emit(); } };
+    if (ch.readyState === 'open') register(); else ch.addEventListener('open', register);
+    ch.addEventListener('close', drop);
     ch.onmessage = (ev) => this._onData(entry, ev.data);
-    // offerer side: we may not know peerId yet; key it once the answer's `from` is tracked
-    if (peerId == null) entry._pending = true;
+    pc.onconnectionstatechange = () => { if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) drop(); };
   }
 
   // Data-channel message: JSON control (string) or a binary chunk (ArrayBuffer).
