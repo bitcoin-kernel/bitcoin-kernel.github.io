@@ -136,6 +136,7 @@ const fmt = (n) => Number(n).toLocaleString();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const TCOL = { p2pk: '#57606a', p2pkh: '#0969da', p2sh: '#8250df', p2ms: '#6e7781', multisig: '#6e7781', p2wpkh: '#1a7f37', p2wsh: '#bf8700', p2tr: '#e8830c', 'p2tr-keypath': '#e8830c', nulldata: '#a0a0a0', unknown: '#cf222e' };
 const TXCAP = 25; // cap the clickable tx list so a spam block doesn't render thousands of rows
+const TIP_ALIASES = new Set(['latest', 'tip', 'head']); // ?height=latest -> always the current tip
 const btc = (v) => { const s = (v / 1e8).toFixed(8).replace(/0+$/, '').replace(/\.$/, ''); return s === '' || s === '0' ? '0' : s; };
 
 const step = (t) => { $('step-t').textContent = t; };
@@ -393,23 +394,24 @@ $('card').addEventListener('click', (e) => {
 function route() {
   const q = new URLSearchParams(location.search);
   if (q.get('tx')) return showTx(q.get('tx'), false);
-  const h = q.get('height');
-  if (h != null && h !== '') return verify(+h, false);
-  return latestBlock();
+  const h = (q.get('height') || '').trim().toLowerCase();
+  if (h && !TIP_ALIASES.has(h) && /^\d+$/.test(h)) return verify(+h, false);
+  return latestBlock(false); // empty, 'latest'/'tip'/'head', or non-numeric -> current tip, no extra push
 }
 window.addEventListener('popstate', route);
 
-async function latestBlock() {
+async function latestBlock(push = true) {
   busy(true);
   $('err').textContent = ''; $('live').classList.add('on'); $('bar').classList.remove('on'); $('live-meta').textContent = '';
   step('finding the chain tip');
   try {
     TIP = Number((await (await api('/api/blocks/tip/height')).text()).trim());
-    verify(TIP);
+    await verify(TIP, false);                 // verify the resolved tip without pushing a numeric URL...
+    if (push) history.pushState({ tip: true }, '', '?height=latest'); // ...keep the symbolic, always-current URL
   } catch (e) { $('live').classList.remove('on'); $('err').textContent = 'Error: ' + e.message; busy(false); }
 }
 
-$('tip').onclick = latestBlock;
+$('tip').onclick = () => latestBlock();
 $('rand').onclick = randomBlock;
 $('go').onclick = () => { const h = parseInt($('height').value, 10); if (Number.isFinite(h) && h >= 0) verify(h); };
 $('height').onkeydown = (e) => { if (e.key === 'Enter') $('go').click(); };
