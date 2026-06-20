@@ -387,7 +387,7 @@ const html = `<!doctype html>
   nav{border-bottom:1px solid var(--bd)}
   nav .wrap{display:flex;align-items:center;gap:1.3rem;height:56px}
   nav .brand{font-weight:700;letter-spacing:-.3px;margin-right:auto;color:var(--fg);font-size:1rem;text-decoration:none}nav .brand b{color:var(--ac)}
-  nav a{color:var(--mut);font-size:.9rem;font-weight:500}
+  nav a{color:var(--mut);font-size:.9rem;font-weight:500}nav a.on{color:var(--fg)}
   .note{margin:1.1rem 0 0;padding:.7rem 1rem;background:var(--pan);border:1px solid var(--bd);border-radius:10px;font-size:.9rem;color:var(--mut);line-height:1.55}
   .note b{color:var(--fg)}
   header.hero{padding:3.2rem 0 1.2rem;text-align:center}
@@ -445,6 +445,7 @@ const html = `<!doctype html>
 <body>
 <nav><div class="wrap">
   <a href="./index.html" class="brand">bitcoin<b>·</b>kernel</a>
+  <a href="./index.html" class="on">Test suite</a>
   <a href="./random.html">Verify a block</a>
   <a href="./cache.html">Your node</a>
   <a href="./spec.html">Specification</a>
@@ -533,6 +534,8 @@ const spec = `<!doctype html>
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="bitcoin-kernel specification">
+<meta name="twitter:description" content="A conformance specification for Bitcoin's consensus rules: normative rules, a test suite, and an independent implementation that runs on Node and in the browser.">
 <meta name="twitter:image" content="https://bitcoin-kernel.com/og.png?v=4">
 <style>
   :root{--bg:#fff;--fg:#16181d;--mut:${C.mut};--bd:${C.border};--pan:${C.panel};--ac:${C.accent};--ac2:${C.accent2};--good:${C.good};--bad:${C.bad};--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
@@ -542,7 +545,7 @@ const spec = `<!doctype html>
   nav{border-bottom:1px solid var(--bd);position:sticky;top:0;background:rgba(255,255,255,.9);backdrop-filter:blur(8px)}
   nav .in{max-width:860px;margin:0 auto;padding:0 1.5rem;display:flex;align-items:center;gap:1.3rem;height:54px}
   nav .brand{font-weight:700;letter-spacing:-.3px;margin-right:auto;color:var(--fg);font-size:1rem;text-decoration:none}nav .brand b{color:var(--ac)}
-  nav a{color:var(--mut);font-size:.9rem;font-weight:500}
+  nav a{color:var(--mut);font-size:.9rem;font-weight:500}nav a.on{color:var(--fg)}
   main{max-width:860px;margin:0 auto;padding:0 1.5rem 5rem}
   header.doc{padding:3rem 0 1.4rem;border-bottom:1px solid var(--bd)}
   .kicker{font:600 .78rem var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ac)}
@@ -578,8 +581,10 @@ const spec = `<!doctype html>
 <body>
 <nav><div class="in">
   <a href="./index.html" class="brand">bitcoin<b>·</b>kernel</a>
-  <a href="./index.html">Live demo</a>
+  <a href="./index.html">Test suite</a>
+  <a href="./random.html">Verify a block</a>
   <a href="./cache.html">Your node</a>
+  <a href="./spec.html" class="on">Specification</a>
   <a href="${ENGINE_REPO}">Source ↗</a>
 </div></nav>
 <main>
@@ -649,7 +654,7 @@ const spec = `<!doctype html>
   </ul>
 </main>
 <footer><div style="max-width:860px;margin:0 auto;padding:0 1.5rem">
-  Generated from <a href="./engine/schema/validate.jsonld">validate.jsonld</a> (engine v${VERSION}). Independent community project, not affiliated with Bitcoin Core. <a href="./index.html">Live demo</a> · <a href="${ENGINE_REPO}">Source</a>
+  Generated from <a href="./engine/schema/validate.jsonld">validate.jsonld</a> (engine v${VERSION}). Independent community project, not affiliated with Bitcoin Core. <a href="./index.html">Test suite</a> · <a href="${ENGINE_REPO}">Source</a>
 </div></footer>
 </body>
 </html>
