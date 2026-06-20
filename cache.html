@@ -69,14 +69,12 @@
 
 <script type="module">
 import { cache } from './cache.js';
+import { ExplorerSource } from './sources.js';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Number(n).toLocaleString();
-const PROVIDERS = ['https://mempool.space', 'https://blockstream.info'];
-async function tipHeight() {
-  for (const b of PROVIDERS) { try { const r = await fetch(b + '/api/blocks/tip/height'); if (r.ok) return Number((await r.text()).trim()); } catch {} }
-  return null;
-}
+const explorer = new ExplorerSource(['https://mempool.space', 'https://blockstream.info']);
+const tipHeight = () => explorer.tipHeight().catch(() => null);
 
 function render(s, q, tip, list, txn) {
   const mb = (s.bytes / 1e6).toFixed(s.bytes >= 1e7 ? 0 : 1);

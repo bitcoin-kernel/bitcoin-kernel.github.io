@@ -125,12 +125,12 @@ import chain from './engine/schema/chain.js';
 import validate from './engine/schema/validate.js';
 import script from './engine/schema/script.js';
 import { cache } from './cache.js';
+import { Sources, CacheSource, ExplorerSource } from './sources.js';
 
 const codec = new Codec(core, proof);
 const be = BlockEngine.fromSchemas(codec, chain, validate, script, 'btc:mainnet');
 const se = ScriptEngine.fromSchemas(script, chain);
 
-const PROVIDERS = ['https://mempool.space', 'https://blockstream.info'];
 const $ = (id) => document.getElementById(id);
 const busy = (b) => { $('rand').disabled = $('go').disabled = $('tip').disabled = b; };
 const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
@@ -145,18 +145,12 @@ const step = (t) => { $('step-t').textContent = t; };
 const setBar = (frac) => { $('bar').classList.add('on'); $('barfill').style.width = (Math.max(0, Math.min(1, frac)) * 100).toFixed(1) + '%'; };
 
 let TIP = null;
-async function api(path, { stream } = {}) {
-  let lastErr;
-  for (const base of PROVIDERS) {
-    try {
-      const r = await fetch(base + path);
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      $('prov').textContent = base.replace('https://', '');
-      return r;
-    } catch (e) { lastErr = e; }
-  }
-  throw new Error('block explorers unreachable (' + (lastErr ? lastErr.message : 'CORS/offline') + ')');
-}
+// Block sources, tried in order behind the cache. A peer-mesh source will slot
+// in here later (between cache and explorer) with no change to the call sites.
+const sources = new Sources([
+  new CacheSource(cache),
+  new ExplorerSource(['https://mempool.space', 'https://blockstream.info']),
+]);
 
 function showCacheStat() {
   const s = cache.stats();
@@ -179,34 +173,21 @@ async function verify(height, push = true) {
   try {
     const tF = performance.now();
     await cache.init();
-    let bytes, hash, received, dlMs = 0, fromCache = false;
-    const ch = cache.hashForHeight(height); // serve any height we've already cached
-    const cached = ch ? await cache.get(ch) : null;
-    if (cached) {
-      step('reading block from your device');
-      bytes = cached; hash = ch; received = bytes.length; fromCache = true;
-      $('prov').textContent = 'your device (OPFS cache)';
-    } else {
-      step(`looking up block ${fmt(height)}`);
-      hash = (await (await api(`/api/block-height/${height}`)).text()).trim();
-      step('downloading block');
-      const resp = await api(`/api/block/${hash}/raw`);
-      const total = +resp.headers.get('content-length') || 0;
-      const reader = resp.body.getReader();
-      const chunks = []; received = 0;
-      const tDl = performance.now();
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value); received += value.length;
-        if (total) setBar(received / total);
-        $('live-meta').textContent = `${(received / 1024).toFixed(0)} KB${total ? ' / ' + (total / 1024).toFixed(0) + ' KB' : ''}`;
-      }
-      dlMs = performance.now() - tDl;
-      setBar(1);
-      bytes = new Uint8Array(received); { let o = 0; for (const c of chunks) { bytes.set(c, o); o += c.length; } }
-      cache.put(hash, height, bytes); // fire-and-forget: keep it for next time
-    }
+    // resolve height -> hash (local index first, then explorer), then ask the
+    // source registry for the bytes: cache hit serves off device, miss fetches.
+    const localHash = cache.available() ? cache.hashForHeight(height) : null;
+    step(localHash ? 'reading block from your device' : `looking up block ${fmt(height)}`);
+    const hash = localHash || await sources.hashForHeight(height);
+    if (!localHash) step('downloading block');
+    const got = await sources.getBlock(hash, (recv, total) => {
+      if (total) setBar(recv / total);
+      $('live-meta').textContent = `${(recv / 1024).toFixed(0)} KB${total ? ' / ' + (total / 1024).toFixed(0) + ' KB' : ''}`;
+    });
+    const bytes = got.bytes, received = bytes.length, dlMs = got.dlMs || 0;
+    const fromCache = got.from === 'your device';
+    $('prov').textContent = fromCache ? 'your device (OPFS cache)' : got.from;
+    if (!fromCache) cache.put(hash, height, bytes); // store explorer/peer fetches for next time
+    if (!fromCache) setBar(1);
     const fetchMs = performance.now() - tF;
 
     $('bar').classList.remove('on');
@@ -317,7 +298,7 @@ async function randomBlock() {
   $('err').textContent = ''; $('live').classList.add('on'); $('bar').classList.remove('on'); $('live-meta').textContent = '';
   step('picking a random block');
   try {
-    if (TIP == null) TIP = Number((await (await api('/api/blocks/tip/height')).text()).trim());
+    if (TIP == null) TIP = await sources.tipHeight();
     verify(Math.floor(Math.random() * (TIP + 1)));
   } catch (e) { $('live').classList.remove('on'); $('err').textContent = 'Error: ' + e.message; busy(false); }
 }
@@ -330,11 +311,11 @@ async function showTx(txid, push = true) {
   $('live').classList.add('on'); $('bar').classList.remove('on'); $('barfill').style.width = '0'; $('live-meta').textContent = '';
   step('fetching transaction');
   try {
-    const tx = await (await api(`/api/tx/${txid}`)).json();
+    const tx = await sources.tx(txid);
     let ver = null;
     try {
       step('verifying scripts & signatures with the engine');
-      const hex = (await (await api(`/api/tx/${txid}/hex`)).text()).trim();
+      const hex = await sources.txHex(txid);
       const etx = codec.decode('Transaction', hex);
       // esplora inlines each prevout's scriptpubkey + value -> exactly what the interpreter needs
       const prevouts = tx.vin.map((v) => v.is_coinbase ? null : { value: v.prevout.value, scriptPubKey: v.prevout.scriptpubkey });
@@ -435,7 +416,7 @@ async function latestBlock(push = true) {
   $('err').textContent = ''; $('live').classList.add('on'); $('bar').classList.remove('on'); $('live-meta').textContent = '';
   step('finding the chain tip');
   try {
-    TIP = Number((await (await api('/api/blocks/tip/height')).text()).trim());
+    TIP = await sources.tipHeight();
     await verify(TIP, false);                 // verify the resolved tip without pushing a numeric URL...
     if (push) history.pushState({ tip: true }, '', '?height=latest'); // ...keep the symbolic, always-current URL
   } catch (e) { $('live').classList.remove('on'); $('err').textContent = 'Error: ' + e.message; busy(false); }
